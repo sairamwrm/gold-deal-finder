@@ -1,42 +1,84 @@
-# 🏆 Gold Deal Finder
+# Gold Deal Finder
 
-[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://core.telegram.org/bots)
+Gold Deal Finder scrapes gold listings, compares selling prices against a calculated benchmark, stores every scan locally, and exposes a dashboard for reviewing the latest scan with historical drill-down.
 
-A smart web scraper that monitors e-commerce websites for gold deals, calculates accurate prices using live spot rates with GST and making charges, and sends Telegram alerts when significant discounts are found.
+## What Changed
 
-## ✨ Features
+- Latest scan is the primary dashboard context.
+- Historical scans are selectable without blending datasets.
+- Manual scan triggering is available locally by default.
+- Local runtime is standardized on `http://localhost:8000`.
 
-- **Real-time Monitoring**: Scrapes Myntra and AJIO for gold products every hour
-- **Accurate Price Calculation**: Uses live gold spot prices with GST (3%) and making charges
-- **Smart Filtering**: Identifies genuine discounts vs. inflated prices
-- **Telegram Alerts**: Instant notifications with product details and purchase links
-- **Multiple API Fallbacks**: Robust gold price fetching with redundancy
-- **Scheduled Scans**: Automatic hourly checks with peak-time optimization
-- **Product Intelligence**: Distinguishes between jewellery and coins with appropriate charges
+## Local Setup
 
-## 🛠️ How It Works
+### Requirements
 
-1. **Scrapes** gold products from Myntra and AJIO
-2. **Extracts** weight and purity from product titles
-3. **Calculates** expected price using:
-   - Live gold spot price
-   - 3% GST
-   - Making charges (3-18% based on product type)
-   - Purity adjustment (24K, 22K, 18K, 14K)
-4. **Compares** selling price with calculated value
-5. **Sends** Telegram alerts for discounts > 5%
+- Python 3.8+
+- Network access for scraping and live gold pricing
 
-## 📋 Prerequisites
+### Install
 
-- Python 3.8 or higher
-- Telegram account (for bot setup)
-- Internet connection
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
 ```bash
-git clone https://github.com/yashypsoft/gold-deal-finder.git
-cd gold-deal-finder
+python3 -m pip install -r requirements.txt
+```
+
+### Run The App
+
+Recommended local path:
+
+```bash
+python3 run.py
+```
+
+Alternative direct server path:
+
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Local URLs
+
+- App: `http://localhost:8000`
+- API docs: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/api/v1/health`
+
+## Runtime Notes
+
+- Scan files are stored in `data/` as `scan_results_<timestamp>.json`.
+- If `data/` is empty, sample scans are generated on startup so the dashboard has something to render.
+- Manual scans use `POST /api/v1/scan`.
+- `GET /api/v1/scan` is kept as a compatibility alias.
+
+## Useful Environment Variables
+
+- `APP_HOST`: server host, default `0.0.0.0`
+- `APP_PORT`: server port, default `8000`
+- `APP_RELOAD`: enable reload mode, default `true`
+- `AUTO_OPEN_BROWSER`: auto-open the dashboard on startup, default `false`
+- `SCAN_COOLDOWN_MINUTES`: backend scan throttle, default `0` for local use
+- `HISTORICAL_SCAN_LIMIT_DEFAULT`: default number of scans searched by historical products API, default `5`
+- `MAX_HISTORICAL_SCAN_LIMIT`: upper bound for multi-scan history queries, default `25`
+
+## Dashboard Workflow
+
+1. Open the dashboard and review the latest scan.
+2. Use filters, sorting, shortlist, and export on the active scan only.
+3. Switch to `Scan Archive` to open any previous scan.
+4. Use `Return To Latest` to restore the current live context.
+5. Trigger a new manual scan from the header when needed.
+
+## Key API Endpoints
+
+- `GET /api/v1/historical/scans`
+- `GET /api/v1/historical/scan/{scan_id}`
+- `GET /api/v1/historical/products`
+- `POST /api/v1/scan`
+- `GET /api/v1/products/latest`
+- `GET /api/v1/stats/summary`
+- `GET /api/v1/spot-price`
+
+## Data Notes
+
+- `.json` and `.json.gz` scan files are supported.
+- Historical product queries accept `scan_limit` to bound multi-scan loading.
+- The dashboard keeps favorites in local browser storage.

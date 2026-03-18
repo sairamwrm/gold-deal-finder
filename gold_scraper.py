@@ -236,20 +236,25 @@ class GoldScraper:
             description = product.get('description', '')
             
             # Skip non-gold products
-            if 'gold' not in title.lower() and 'gold' not in description.lower():
-                return None
+            # if 'gold' not in title.lower() and 'gold' not in description.lower():
+            #     print('Skipping non-gold product    :', title)
+            #     return None
 
             if 'silver' in title.lower():
+                # print('Skipping silver product    :', title)
                 return None
             
             # Extract purity and weight
             purity, weight = self.extract_purity_and_weight(title)
             
             if not purity or not weight:
+                print(product)
+                print('AJIO>Skipping invalid purity/weight product :', title)
                 return None
             
             # Skip very small items
             if weight < 0.3:
+                print('Skipping <0.3 product    :', title)
                 return None
             
             # Determine product type
@@ -266,6 +271,7 @@ class GoldScraper:
             
             # Skip if price is too low
             if selling_price < 1000:
+                print('Skipping <1000 price product    :', title)
                 return None
             
             # Calculate expected price
@@ -360,9 +366,9 @@ class GoldScraper:
 
                 if r.status_code != 200:
                     return []
-                print(f"Page {page} response:")
-                print(r.status_code)
-                print(r.text)  # Print first 200 characters of response text
+                # print(f"Page {page} response:")
+                # print(r.status_code)
+                # print(r.text)  # Print first 200 characters of response text
                 data = r.json()
                 page_products = []
 
@@ -425,23 +431,29 @@ class GoldScraper:
             
             # Skip if no title
             if not title:
+                print('Skipping Myntra price product    :', title)
                 return None
             
             # Skip non-gold products
-            if 'gold' not in title.lower():
-                return None
+            # if 'gold' not in title.lower():
+            #     print('Skipping not gold product    :', title)
+            #     return None
         
             if 'silver' in title.lower():
+                # print('Skipping silver  product    :', title)
                 return None
             
             # Extract purity and weight
             purity, weight = self.extract_purity_and_weight(title)
             
             if not purity or not weight:
+                # print(product);
+                print('Myntra>Skipping invalid purity/weight product    :', title)
                 return None
             
             # Skip very small items
             if weight < 0.3:
+                print('Skipping very small weight < 0.3 product    :', title)
                 return None
             
             # Determine product type from title
@@ -454,6 +466,7 @@ class GoldScraper:
             
             # Skip if price is too low
             if selling_price < 1000:
+                print('Skipping very small price <1000 product    :', title)
                 return None
             
             # Calculate expected price

@@ -84,6 +84,17 @@ JEWELLERY_PREMIUM_22K = 1200
 CACHE_TTL = 300  # 5 minutes
 CACHE_FILE = "bullion_cache.json"
 
+# Local app runtime
+APP_HOST = os.getenv('APP_HOST', '0.0.0.0')
+APP_PORT = int(os.getenv('APP_PORT', '8000'))
+APP_RELOAD = os.getenv('APP_RELOAD', 'true').lower() == 'true'
+AUTO_OPEN_BROWSER = os.getenv('AUTO_OPEN_BROWSER', 'false').lower() == 'true'
+
+# Scan behavior
+SCAN_COOLDOWN_MINUTES = int(os.getenv('SCAN_COOLDOWN_MINUTES', '0'))
+HISTORICAL_SCAN_LIMIT_DEFAULT = int(os.getenv('HISTORICAL_SCAN_LIMIT_DEFAULT', '5'))
+MAX_HISTORICAL_SCAN_LIMIT = int(os.getenv('MAX_HISTORICAL_SCAN_LIMIT', '25'))
+
 # Scraping settings
 REQUEST_DELAY = 2  # seconds between requests
 MAX_PAGES = 3

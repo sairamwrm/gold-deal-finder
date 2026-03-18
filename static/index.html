@@ -2,1841 +2,1431 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
-    <title>Gold Deal Finder - Premium Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Gold Deal Finder</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { font-family: 'Inter', sans-serif; }
-        
-        /* Dark Mode */
-        .dark {
-            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-            color: #f7fafc;
+        :root {
+            --bg: #f6efe2;
+            --bg-soft: rgba(255, 250, 241, 0.84);
+            --surface: rgba(255, 252, 247, 0.82);
+            --surface-strong: rgba(255, 249, 238, 0.95);
+            --line: rgba(97, 73, 33, 0.12);
+            --text: #2f2417;
+            --muted: #6c5940;
+            --accent: #c99a3f;
+            --accent-deep: #8f6422;
+            --accent-soft: rgba(201, 154, 63, 0.14);
+            --positive: #2f6c57;
+            --negative: #8b4c36;
+            --shadow: 0 30px 80px rgba(92, 67, 28, 0.12);
         }
-        .dark .bg-white { background-color: #2d3748 !important; }
-        .dark .text-gray-900 { color: #f7fafc !important; }
-        .dark .text-gray-600 { color: #cbd5e0 !important; }
-        .dark .border-gray-200 { border-color: #4a5568 !important; }
-        .dark .bg-gray-100 { background-color: #4a5568 !important; }
-        
-        [v-cloak] { display: none; }
-        
-        /* Responsive Fixes */
-        html, body {
-            overflow-x: hidden;
-            width: 100%;
-            -webkit-tap-highlight-color: transparent;
+
+        :root.dark {
+            --bg: #101216;
+            --bg-soft: rgba(18, 22, 28, 0.84);
+            --surface: rgba(20, 25, 31, 0.86);
+            --surface-strong: rgba(22, 28, 35, 0.94);
+            --line: rgba(247, 236, 214, 0.08);
+            --text: #f7f0e1;
+            --muted: #c7bda9;
+            --accent: #e1b45d;
+            --accent-deep: #f4d18b;
+            --accent-soft: rgba(225, 180, 93, 0.16);
+            --positive: #79c4ad;
+            --negative: #d68b69;
+            --shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
         }
-        
-        .container-responsive {
-            width: 100%;
-            padding-left: 1rem;
-            padding-right: 1rem;
-            margin-left: auto;
-            margin-right: auto;
+
+        * {
+            box-sizing: border-box;
         }
-        
-        @media (min-width: 640px) {
-            .container-responsive { padding-left: 1.5rem; padding-right: 1.5rem; }
-        }
-        
-        @media (min-width: 1024px) {
-            .container-responsive { padding-left: 2rem; padding-right: 2rem; }
-        }
-        
-        /* Mobile Menu */
-        .mobile-menu {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: white;
-            z-index: 100;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease-in-out;
-            overflow-y: auto;
-            padding: 1.5rem;
-        }
-        
-        .dark .mobile-menu {
-            background: #1a202c;
-        }
-        
-        .mobile-menu.active {
-            transform: translateX(0);
-        }
-        
-        /* Touch-friendly buttons */
-        button, a {
-            min-height: 44px;
-            min-width: 44px;
-            touch-action: manipulation;
-        }
-        
-        /* Responsive typography */
-        @media (max-width: 640px) {
-            h1 { font-size: 1.5rem !important; }
-            h2 { font-size: 1.25rem !important; }
-            h3 { font-size: 1.125rem !important; }
-            .text-3xl { font-size: 1.5rem !important; }
-            .text-2xl { font-size: 1.25rem !important; }
-            .text-xl { font-size: 1.125rem !important; }
-            .p-6 { padding: 1rem !important; }
-            .p-5 { padding: 0.875rem !important; }
-            .p-4 { padding: 0.75rem !important; }
-        }
-        
-        /* Responsive grid adjustments */
-        @media (max-width: 768px) {
-            .grid-cols-1 { grid-template-columns: 1fr !important; }
-            .gap-6 { gap: 1rem !important; }
-            .gap-4 { gap: 0.75rem !important; }
-        }
-        
-        /* Responsive tables */
-        .responsive-table {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 0 -1rem;
-            padding: 0 1rem;
-            width: calc(100% + 2rem);
-        }
-        
-        @media (max-width: 768px) {
-            .responsive-table table {
-                min-width: 600px;
-            }
-        }
-        
-        /* Responsive charts */
-        .chart-container {
-            position: relative;
-            height: 250px;
-            width: 100%;
-        }
-        
-        @media (min-width: 768px) {
-            .chart-container { height: 300px; }
-        }
-        
-        @media (min-width: 1024px) {
-            .chart-container { height: 350px; }
-        }
-        
-        /* Better touch scrolling */
-        .overflow-x-auto {
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: thin;
-        }
-        
-        /* Responsive product cards */
-        .product-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .product-card:hover { 
-            transform: translateY(-4px) scale(1.02); 
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); 
-        }
-        
-        .dark .product-card:hover { 
-            box-shadow: 0 20px 25px -5px rgba(253,184,19,0.2), 0 10px 10px -5px rgba(253,184,19,0.1); 
-        }
-        
-        .product-image {
-            height: 180px;
-        }
-        
-        @media (min-width: 768px) {
-            .product-image { height: 200px; }
-        }
-        
-        @media (min-width: 1024px) {
-            .product-image { height: 220px; }
-        }
-        
-        /* Mobile bottom navigation */
-        .mobile-bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
-            z-index: 40;
-            padding: 0.5rem;
+
+        [v-cloak] {
             display: none;
         }
-        
-        .dark .mobile-bottom-nav {
-            background: #2d3748;
-            border-top: 1px solid #4a5568;
+
+        html,
+        body {
+            min-height: 100%;
+            margin: 0;
+            background:
+                radial-gradient(circle at top left, rgba(209, 163, 86, 0.2), transparent 26%),
+                radial-gradient(circle at top right, rgba(110, 80, 34, 0.09), transparent 22%),
+                linear-gradient(180deg, rgba(255,255,255,0.36), transparent 30%),
+                var(--bg);
+            color: var(--text);
+            font-family: 'Manrope', sans-serif;
+            transition: background 0.35s ease, color 0.35s ease;
         }
-        
-        @media (max-width: 768px) {
-            .mobile-bottom-nav {
-                display: flex;
-                justify-content: space-around;
-                align-items: center;
-            }
-            body { padding-bottom: 70px; }
+
+        body {
+            overflow-x: hidden;
         }
-        
-        .mobile-nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
-            color: #6b7280;
+
+        .display-font {
+            font-family: 'Cormorant Garamond', serif;
+            letter-spacing: -0.02em;
         }
-        
-        .mobile-nav-item.active {
-            color: #FDB813;
-        }
-        
-        .dark .mobile-nav-item {
-            color: #9ca3af;
-        }
-        
-        .dark .mobile-nav-item.active {
-            color: #FDB813;
-        }
-        
-        /* Responsive filters */
-        .filters-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 0.75rem;
-        }
-        
-        @media (max-width: 640px) {
-            .filters-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        /* Loading skeleton */
-        .skeleton {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: loading 1.5s infinite;
-            border-radius: 0.5rem;
-        }
-        
-        .dark .skeleton {
-            background: linear-gradient(90deg, #4a5568 25%, #718096 50%, #4a5568 75%);
-        }
-        
-        @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        
-        /* Responsive badges */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            border-radius: 9999px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            white-space: nowrap;
-        }
-        
-        @media (max-width: 640px) {
-            .badge {
-                padding: 0.2rem 0.5rem;
-                font-size: 0.7rem;
-            }
-        }
-        
-        .badge-gold {
-            background: linear-gradient(135deg, #FDB813, #FFB347);
-            color: white;
-        }
-        
-        .gold-gradient {
-            background: linear-gradient(135deg, #FDB813 0%, #FFB347 50%, #FDB813 100%);
-        }
-        
-        /* Responsive modals */
-        .modal-container {
-            width: 95%;
-            max-width: 500px;
-            margin: 1rem auto;
-        }
-        
-        @media (min-width: 640px) {
-            .modal-container {
-                width: 90%;
-            }
-        }
-        
-        @media (min-width: 768px) {
-            .modal-container {
-                width: 80%;
-            }
-        }
-        
-        /* Touch-friendly filter chips */
-        .filter-chip {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            margin: 0.25rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            background: #f3f4f6;
-            color: #374151;
-            cursor: pointer;
-            transition: all 0.2s;
-            min-height: 40px;
-        }
-        
-        .dark .filter-chip {
-            background: #4a5568;
-            color: #e2e8f0;
-        }
-        
-        .filter-chip.active {
-            background: #FDB813;
-            color: white;
-        }
-        
-        .filter-chip i {
-            margin-right: 0.5rem;
-        }
-        
-        /* Responsive stats cards */
-        .stat-card {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        
-        @media (max-width: 640px) {
-            .stat-card {
-                padding: 1rem !important;
-            }
-        }
-        
-        /* Better line clamp */
-        .line-clamp-2 {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            word-break: break-word;
-        }
-        
-        /* Touch-friendly tooltips */
-        .tooltip {
+
+        .app-shell {
             position: relative;
+            min-height: 100vh;
+            padding-bottom: 5rem;
         }
-        
-        @media (hover: hover) {
-            .tooltip:hover:after {
-                content: attr(data-tooltip);
-                position: absolute;
-                bottom: 100%;
-                left: 50%;
-                transform: translateX(-50%);
-                padding: 0.5rem 1rem;
-                background: #2d3748;
-                color: white;
-                font-size: 0.75rem;
-                border-radius: 0.375rem;
-                white-space: nowrap;
-                z-index: 50;
-                margin-bottom: 0.5rem;
-            }
+
+        .ornament {
+            position: fixed;
+            border-radius: 999px;
+            filter: blur(18px);
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.55;
         }
-        
-        /* Responsive pagination */
-        .pagination-mobile {
+
+        .ornament.one {
+            top: -4rem;
+            left: -2rem;
+            width: 16rem;
+            height: 16rem;
+            background: rgba(212, 169, 86, 0.18);
+        }
+
+        .ornament.two {
+            top: 20rem;
+            right: -4rem;
+            width: 18rem;
+            height: 18rem;
+            background: rgba(95, 75, 40, 0.12);
+        }
+
+        .ornament.three {
+            bottom: -4rem;
+            left: 30%;
+            width: 14rem;
+            height: 14rem;
+            background: rgba(42, 90, 110, 0.1);
+        }
+
+        .shell-width {
+            position: relative;
+            z-index: 1;
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 1.25rem;
+        }
+
+        .surface,
+        .surface-strong,
+        .metric-card,
+        .chart-shell,
+        .scan-card,
+        .product-card,
+        .toolbar-card,
+        .modal-card,
+        .drawer {
+            border: 1px solid var(--line);
+            backdrop-filter: blur(16px);
+            box-shadow: var(--shadow);
+        }
+
+        .surface {
+            background: var(--surface);
+            border-radius: 28px;
+        }
+
+        .surface-strong,
+        .toolbar-card,
+        .metric-card,
+        .chart-shell,
+        .scan-card,
+        .product-card,
+        .modal-card,
+        .drawer {
+            background: var(--surface-strong);
+            border-radius: 24px;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            padding-top: 0.75rem;
+        }
+
+        .topbar-inner {
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+        }
+
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 18px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+            color: white;
+            box-shadow: 0 18px 36px rgba(139, 102, 31, 0.24);
+        }
+
+        .kicker {
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.7rem;
+            color: var(--muted);
+        }
+
+        .hero {
+            padding: 1.4rem;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.9fr);
+            gap: 1rem;
+        }
+
+        .hero-panel {
+            padding: 1.5rem;
+            border-radius: 24px;
+            background:
+                linear-gradient(135deg, rgba(255, 251, 242, 0.9), rgba(245, 232, 205, 0.5)),
+                var(--surface-strong);
+            border: 1px solid rgba(193, 149, 73, 0.18);
+        }
+
+        :root.dark .hero-panel {
+            background:
+                linear-gradient(135deg, rgba(38, 30, 19, 0.5), rgba(27, 32, 38, 0.92)),
+                var(--surface-strong);
+        }
+
+        .hero-aside {
+            display: grid;
+            gap: 0.85rem;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.55rem 0.9rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent-deep);
+            font-weight: 700;
+            font-size: 0.78rem;
+        }
+
+        .pill.neutral {
+            background: rgba(61, 49, 34, 0.06);
+            color: var(--muted);
+        }
+
+        :root.dark .pill.neutral {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-ghost,
+        .icon-btn,
+        .tab-btn {
+            border: 0;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-ghost,
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            min-height: 44px;
+            padding: 0.8rem 1.05rem;
+            border-radius: 16px;
+            font-weight: 700;
+        }
+
+        .btn-primary {
+            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        }
+
+        .btn-secondary {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.52);
+            border: 1px solid var(--line);
+        }
+
+        :root.dark .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .btn-ghost,
+        .icon-btn,
+        .tab-btn {
+            color: var(--text);
+            background: transparent;
+        }
+
+        .btn-primary:hover,
+        .btn-secondary:hover,
+        .btn-ghost:hover,
+        .icon-btn:hover,
+        .tab-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metric-card {
+            padding: 1.2rem;
+        }
+
+        .metric-label {
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+        }
+
+        .metric-value {
+            margin-top: 0.75rem;
+            font-size: 1.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .metric-subtext {
+            margin-top: 0.65rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding: 1rem 1.2rem;
+            border-radius: 20px;
+            background: rgba(61, 106, 128, 0.12);
+            border: 1px solid rgba(61, 106, 128, 0.14);
+        }
+
+        .tab-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.36);
+            border: 1px solid var(--line);
+        }
+
+        :root.dark .tab-row {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .tab-btn {
+            min-height: 42px;
+            padding: 0.75rem 1rem;
+            border-radius: 16px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .tab-btn.active {
+            background: var(--surface-strong);
+            color: var(--text);
+            box-shadow: inset 0 0 0 1px rgba(209, 163, 86, 0.16);
+        }
+
+        .toolbar-card {
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .toolbar-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 0.85rem;
+        }
+
+        .field-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .input-field,
+        .select-field {
+            width: 100%;
+            min-height: 46px;
+            padding: 0.85rem 0.95rem;
+            border-radius: 15px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.54);
+            color: var(--text);
+            outline: none;
+        }
+
+        :root.dark .input-field,
+        :root.dark .select-field {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem;
+            margin-bottom: 1rem;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            border-radius: 999px;
+            padding: 0.5rem 0.75rem;
+            background: rgba(201, 154, 63, 0.12);
+            color: var(--accent-deep);
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .product-card {
+            overflow: hidden;
+        }
+
+        .product-media {
+            position: relative;
+            height: 220px;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(220, 184, 114, 0.24), rgba(255, 255, 255, 0.25));
+        }
+
+        .product-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .product-body {
+            padding: 1rem;
+        }
+
+        .product-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0.75rem 0;
+        }
+
+        .meta-badge {
+            padding: 0.4rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: rgba(61, 49, 34, 0.06);
+            color: var(--muted);
+        }
+
+        .tone-positive {
+            color: var(--positive);
+        }
+
+        .tone-negative {
+            color: var(--negative);
+        }
+
+        .chart-grid,
+        .insight-grid,
+        .scan-grid,
+        .preview-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .chart-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .chart-shell {
+            padding: 1rem;
+        }
+
+        .chart-canvas {
+            position: relative;
+            height: 320px;
+        }
+
+        .insight-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-bottom: 1rem;
+        }
+
+        .scan-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .scan-card {
+            padding: 1.05rem;
+        }
+
+        .scan-card.active {
+            border-color: rgba(201, 154, 63, 0.42);
+            box-shadow: 0 20px 40px rgba(165, 120, 44, 0.18);
+        }
+
+        .preview-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .mini-card {
+            padding: 0.9rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.38);
+            border: 1px solid var(--line);
+        }
+
+        :root.dark .mini-card {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .empty-state,
+        .alert-card {
+            padding: 2rem;
+            text-align: center;
+            border-radius: 24px;
+            border: 1px solid var(--line);
+            background: var(--surface-strong);
+            box-shadow: var(--shadow);
+        }
+
+        .pagination-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .page-list {
+            display: flex;
             gap: 0.5rem;
             flex-wrap: wrap;
         }
-        
-        @media (max-width: 640px) {
-            .pagination-desktop {
-                display: none;
+
+        .page-dot {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: transparent;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .page-dot.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+            color: white;
+            border-color: transparent;
+        }
+
+        .drawer {
+            position: fixed;
+            inset: 0 auto 0 0;
+            width: min(88vw, 360px);
+            padding: 1.1rem;
+            border-radius: 0 24px 24px 0;
+            transform: translateX(-105%);
+            transition: transform 0.3s ease;
+            z-index: 50;
+        }
+
+        .drawer.open {
+            transform: translateX(0);
+        }
+
+        .backdrop {
+            position: fixed;
+            background: rgba(15, 18, 22, 0.35);
+            backdrop-filter: blur(6px);
+            z-index: 40;
+        }
+
+        .modal-wrap {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            display: grid;
+            place-items: center;
+            padding: 1rem;
+        }
+
+        .modal-card {
+            width: min(640px, 100%);
+            padding: 1.25rem;
+        }
+
+        .modal-card.large {
+            width: min(860px, 100%);
+        }
+
+        .toast-stack {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 70;
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .toast {
+            min-width: 260px;
+            max-width: 380px;
+            padding: 0.95rem 1rem;
+            border-radius: 18px;
+            color: white;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, #2f6c57, #4b8f74);
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, #8b4c36, #b56b4e);
+        }
+
+        .toast-info {
+            background: linear-gradient(135deg, #3d6a80, #5a8fa8);
+        }
+
+        .shortcut-fab {
+            position: fixed;
+            right: 1rem;
+            top: 6.25rem;
+            z-index: 35;
+        }
+
+        .overlay-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 80;
+            display: grid;
+            place-items: center;
+            background: rgba(13, 17, 22, 0.32);
+            backdrop-filter: blur(6px);
+        }
+
+        .loader-card {
+            padding: 1.5rem 1.8rem;
+            border-radius: 28px;
+            background: var(--surface-strong);
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--line);
+        }
+
+        .pulse-orb {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1rem;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+            animation: pulse 1.6s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(201, 154, 63, 0.28); }
+            50% { transform: scale(1.08); box-shadow: 0 0 0 18px rgba(201, 154, 63, 0); }
+        }
+
+        @media (max-width: 1180px) {
+            .hero-grid,
+            .chart-grid,
+            .scan-grid,
+            .product-grid,
+            .preview-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
-            .pagination-mobile {
-                display: flex;
+
+            .toolbar-grid,
+            .metric-grid,
+            .insight-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
-        
-        @media (min-width: 641px) {
-            .pagination-mobile {
-                display: none;
+
+        @media (max-width: 820px) {
+            .shell-width {
+                padding: 1rem;
             }
-            .pagination-desktop {
-                display: flex;
+
+            .hero-grid,
+            .chart-grid,
+            .scan-grid,
+            .product-grid,
+            .preview-grid,
+            .metric-grid,
+            .insight-grid,
+            .toolbar-grid {
+                grid-template-columns: minmax(0, 1fr);
             }
-        }
-        
-        /* Responsive text truncation */
-        .truncate-mobile {
-            max-width: 150px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        @media (max-width: 640px) {
-            .truncate-mobile {
-                max-width: 120px;
+
+            .topbar-inner {
+                padding: 0.9rem 1rem;
             }
-        }
-        
-        /* Responsive spacing */
-        .section-spacing {
-            margin-bottom: 1.5rem;
-        }
-        
-        @media (min-width: 768px) {
-            .section-spacing {
-                margin-bottom: 2rem;
+
+            .hero,
+            .hero-panel,
+            .metric-card,
+            .chart-shell,
+            .scan-card,
+            .product-body,
+            .toolbar-card,
+            .modal-card,
+            .drawer {
+                padding-left: 1rem;
+                padding-right: 1rem;
             }
-        }
-        
-        @media (min-width: 1024px) {
-            .section-spacing {
-                margin-bottom: 2.5rem;
+
+            .toast-stack {
+                left: 1rem;
+                right: 1rem;
+            }
+
+            .toast {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            .shortcut-fab {
+                top: auto;
+                bottom: 5.5rem;
             }
         }
     </style>
 </head>
-<body :class="['bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50', darkModeClass]" >
-    <div id="app" class="min-h-screen transition-colors duration-300 pb-16 md:pb-0" v-cloak>
-        
-        <!-- ========== MOBILE HEADER ========== -->
-        <div class="lg:hidden sticky top-0 z-50 glass-effect border-b dark:border-gray-700">
-            <div class="flex justify-between items-center p-4">
-                <div class="flex items-center space-x-3">
-                    <div class="gold-gradient p-2 rounded-xl shadow-lg">
-                        <i class="fas fa-coins text-white text-xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-xl font-extrabold text-gray-900 dark:text-white">Gold Finder</h1>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ allProducts.length }} products
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center space-x-2">
-                    <!-- Mobile Menu Button -->
-                    <button @click="mobileMenuOpen = !mobileMenuOpen" 
-                            class="p-2 rounded-lg bg-white dark:bg-gray-800 border dark:border-gray-700">
-                        <i class="fas fa-bars text-gray-700 dark:text-gray-300"></i>
+<body>
+    <div id="app" class="app-shell" v-cloak>
+        <div class="ornament one"></div>
+        <div class="ornament two"></div>
+        <div class="ornament three"></div>
+
+        <div class="shell-width topbar">
+            <div class="surface topbar-inner">
+                <div class="flex items-center gap-4 min-w-0">
+                    <button class="icon-btn lg:hidden" @click="mobileMenuOpen = true">
+                        <i class="fas fa-bars"></i>
                     </button>
-                    
-                    <!-- Mobile Scan Button -->
-                    <button @click="showScanModal = true" :disabled="scanning"
-                            class="gold-gradient p-2 rounded-lg shadow-lg">
-                        <i class="fas fa-search text-white"></i>
+                    <div class="brand-mark">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="kicker">Market Watch</div>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <h1 class="display-font text-3xl md:text-4xl font-bold leading-none">Gold Deal Finder</h1>
+                            <span class="pill"><i class="fas fa-wave-square"></i>{{ scanLabel }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hidden lg:flex items-center gap-3 flex-wrap justify-end">
+                    <div class="pill neutral">
+                        <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                        Spot {{ liveSpotPrice ? formatCurrency(liveSpotPrice) + '/g' : 'Loading' }}
+                    </div>
+                    <button class="btn-secondary" @click="showFavoritesModal = true">
+                        <i class="fas fa-star"></i> Shortlist {{ favorites.length ? '(' + favorites.length + ')' : '' }}
+                    </button>
+                    <button class="btn-secondary" @click="showExportModal = true">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                    <button class="btn-secondary" @click="refreshData" :disabled="refreshing">
+                        <i class="fas" :class="refreshing ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
+                        {{ refreshing ? 'Refreshing' : 'Refresh' }}
+                    </button>
+                    <button class="btn-secondary" @click="toggleTheme">
+                        <i class="fas" :class="darkMode ? 'fa-sun' : 'fa-moon'"></i>
+                    </button>
+                    <button class="btn-primary" @click="showScanModal = true" :disabled="scanning">
+                        <i class="fas" :class="scanning ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                        {{ scanning ? 'Scanning' : 'Run Scan' }}
                     </button>
                 </div>
             </div>
-            
-            <!-- Mobile Live Price -->
-            <div class="px-4 pb-3 flex items-center space-x-2 text-xs">
-                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                <span class="text-gray-600 dark:text-gray-400">Gold:</span>
-                <span class="font-bold text-yellow-600 dark:text-yellow-400">
-                    {{ spotPrice ? '₹' + Math.round(spotPrice?.gold?.per_gram['999_landed']).toLocaleString() + '/g' : '...' }}
-                </span>
-            </div>
         </div>
 
-        <!-- ========== MOBILE MENU ========== -->
-        <div :class="['mobile-menu', mobileMenuOpen ? 'active' : '']" class="lg:hidden">
-            <div class="flex justify-between items-center mb-6">
-                <div class="flex items-center space-x-3">
-                    <div class="gold-gradient p-2 rounded-xl">
-                        <i class="fas fa-coins text-white text-xl"></i>
-                    </div>
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white">Menu</h2>
+        <div v-if="mobileMenuOpen" class="backdrop" @click="mobileMenuOpen = false"></div>
+        <aside class="drawer" :class="{ open: mobileMenuOpen }">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <div class="kicker">Navigation</div>
+                    <div class="display-font text-2xl font-bold">Command Deck</div>
                 </div>
-                <button @click="mobileMenuOpen = false" class="p-2">
-                    <i class="fas fa-times text-gray-500 text-xl"></i>
-                </button>
+                <button class="icon-btn" @click="mobileMenuOpen = false"><i class="fas fa-times"></i></button>
             </div>
-            
-            <div class="space-y-4">
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Current Scan</p>
-                    <p class="text-sm font-medium text-gray-900 dark:text-white">ID: {{ currentScanId?.substring(0, 8) || 'N/A' }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ scanTimeFormatted }}</p>
-                </div>
-                
-                <button @click="activeTab = 'products'; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-box w-6 text-yellow-500"></i>
-                    <span>Products ({{ filteredProducts.total }})</span>
-                </button>
-                
-                <button @click="activeTab = 'scans'; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-history w-6 text-yellow-500"></i>
-                    <span>Scan History ({{ scans.length }})</span>
-                </button>
-                
-                <button @click="activeTab = 'stats'; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-chart-bar w-6 text-yellow-500"></i>
-                    <span>Statistics</span>
-                </button>
-                
-                <button @click="showFavoritesModal = true; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-star w-6 text-yellow-500"></i>
-                    <span>Favorites ({{ favorites.length }})</span>
-                </button>
-                
-                <button @click="showExportModal = true; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-download w-6 text-yellow-500"></i>
-                    <span>Export Data</span>
-                </button>
-                
-                <button @click="darkMode = !darkMode; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i :class="darkMode ? 'fas fa-sun w-6 text-yellow-500' : 'fas fa-moon w-6 text-yellow-500'"></i>
-                    <span>{{ darkMode ? 'Light Mode' : 'Dark Mode' }}</span>
-                </button>
-                
-                <button @click="refreshData; mobileMenuOpen = false" 
-                        class="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                    <i class="fas fa-sync-alt w-6 text-yellow-500"></i>
-                    <span>Refresh Data</span>
-                </button>
-            </div>
-        </div>
 
-        <!-- ========== DESKTOP NAVIGATION ========== -->
-        <nav :class="['glass-effect shadow-lg sticky top-0 z-40 border-b transition-colors duration-300 hidden lg:block', darkMode ? 'border-gray-700' : 'border-yellow-100']">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center h-20">
-                    
-                    <!-- Logo & Brand -->
-                    <div class="flex items-center space-x-4">
-                        <div class="gold-gradient p-3 rounded-2xl shadow-lg transform hover:scale-110 transition-transform">
-                            <i class="fas fa-coins text-white text-2xl"></i>
-                        </div>
-                        <div>
-                            <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white flex items-center">
-                                Gold Deal Finder
-                                <span class="ml-3 badge badge-gold text-xs">PREMIUM</span>
-                            </h1>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                                <i class="fas fa-database mr-1"></i>
-                                Latest: {{ allProducts.length }} products • 
-                                <i class="fas fa-percent ml-2 mr-1 text-green-500"></i>
-                                Avg {{ averageDiscount }}% off
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <!-- Desktop Actions -->
-                    <div class="flex items-center space-x-3">
-                        <div class="flex items-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-full shadow-sm border dark:border-gray-700">
-                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Gold</span>
-                            <span class="text-sm font-bold text-yellow-600 dark:text-yellow-400">
-                                {{ spotPrice ? '₹' + Math.round(spotPrice?.gold?.per_gram['999_landed']).toLocaleString() + '/g' : '...' }}
-                            </span>
-                        </div>
-                        
-                        <button @click="darkMode = !darkMode" 
-                                class="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 p-2 rounded-lg border dark:border-gray-700 transition-all hover:scale-105 tooltip"
-                                :data-tooltip="darkMode ? 'Light Mode' : 'Dark Mode'">
-                            <i :class="darkMode ? 'fas fa-sun' : 'fas fa-moon'"></i>
-                        </button>
-                        
-                        <button @click="showExportModal = true" 
-                                class="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg items-center border dark:border-gray-700 transition-all hover:scale-105 tooltip hidden xl:flex"
-                                data-tooltip="Export Data">
-                            <i class="fas fa-download mr-2"></i>
-                            Export
-                        </button>
-                        
-                        <button @click="showFavoritesModal = true" 
-                                class="relative bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 p-2 rounded-lg border dark:border-gray-700 transition-all hover:scale-105">
-                            <i class="fas fa-star text-yellow-500"></i>
-                            <span v-if="favorites.length" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                                {{ favorites.length }}
-                            </span>
-                        </button>
-                        
-                        <button @click="showScanModal = true" :disabled="scanning"
-                                class="gold-gradient hover:opacity-90 text-white px-6 py-2 rounded-lg flex items-center shadow-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i class="fas fa-search mr-2" :class="{'fa-spin': scanning}"></i>
-                            {{ scanning ? 'Scanning...' : 'New Scan' }}
-                        </button>
-                    </div>
-                </div>
+            <div class="grid gap-3">
+                <button class="btn-secondary w-full" @click="activeTab = 'products'; mobileMenuOpen = false">
+                    <i class="fas fa-gem"></i> Products
+                </button>
+                <button class="btn-secondary w-full" @click="activeTab = 'scans'; mobileMenuOpen = false">
+                    <i class="fas fa-history"></i> Archive
+                </button>
+                <button class="btn-secondary w-full" @click="activeTab = 'insights'; mobileMenuOpen = false">
+                    <i class="fas fa-chart-pie"></i> Insights
+                </button>
+                <button class="btn-secondary w-full" @click="showFavoritesModal = true; mobileMenuOpen = false">
+                    <i class="fas fa-star"></i> Shortlist
+                </button>
+                <button class="btn-secondary w-full" @click="showExportModal = true; mobileMenuOpen = false">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="btn-secondary w-full" @click="refreshData(); mobileMenuOpen = false">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="btn-secondary w-full" @click="toggleTheme(); mobileMenuOpen = false">
+                    <i class="fas" :class="darkMode ? 'fa-sun' : 'fa-moon'"></i> Theme
+                </button>
+                <button class="btn-primary w-full" @click="showScanModal = true; mobileMenuOpen = false">
+                    <i class="fas fa-search"></i> Run Scan
+                </button>
             </div>
-        </nav>
+        </aside>
 
-        <!-- ========== TOP NOTIFICATION BAR (DESKTOP) ========== -->
-        <div v-if="currentScanId" class="hidden lg:block bg-gradient-to-r from-yellow-400 to-amber-500 text-white py-2 px-4 text-sm">
-            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <i class="fas fa-sync-alt animate-spin-slow"></i>
-                    <span>Latest Scan: {{ scanTimeFormatted }} • ID: {{ currentScanId.substring(0, 8) }}</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="flex items-center">
-                        <i class="fas fa-cube mr-1"></i>
-                        <strong>{{ allProducts.length }}</strong> products
-                    </span>
-                    <span class="flex items-center">
-                        <i class="fas fa-tags mr-1"></i>
-                        <strong>{{ uniquePurities.length }}</strong> purities
-                    </span>
-                    <span class="flex items-center">
-                        <i class="fas fa-store mr-1"></i>
-                        <strong>{{ uniqueSources.length }}</strong> sources
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========== MAIN CONTENT ========== -->
-        <div class="container-responsive max-w-7xl mx-auto py-4 md:py-6 lg:py-8">
-            
-            <!-- ========== RESPONSIVE STATS GRID ========== -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 lg:gap-6 mb-4 md:mb-6 lg:mb-8">
-                
-                <!-- Card 1: Total Products -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-l-4 md:border-l-8 border-yellow-500 transform transition hover:scale-105">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                                <i class="fas fa-cubes mr-1 text-yellow-500"></i>
-                                <span class="truncate">PRODUCTS</span>
-                            </p>
-                            <p class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{{ allProducts.length }}</p>
-                            <div class="flex flex-wrap items-center mt-2 gap-1">
-                                <span class="text-[10px] md:text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-0.5 rounded-full">
-                                    {{ uniquePurities.length }} purities
-                                </span>
+        <main class="shell-width">
+            <section class="surface hero">
+                <div class="hero-grid">
+                    <div class="hero-panel">
+                        <div class="kicker mb-3">Selected Scan</div>
+                        <div class="flex flex-wrap items-center gap-3 justify-between">
+                            <div>
+                                <h2 class="display-font text-4xl md:text-5xl font-bold leading-tight">
+                                    {{ selectedScanId ? selectedScanId.substring(0, 8) : 'No active scan' }}
+                                </h2>
+                                <p class="text-base mt-3" style="color: var(--muted);">
+                                    {{ scanTimeFormatted }}
+                                    <span v-if="selectedScanTimestamp">· {{ formatTimeAgo(selectedScanTimestamp) }}</span>
+                                </p>
                             </div>
-                        </div>
-                        <div class="bg-yellow-100 dark:bg-yellow-900 p-2 md:p-3 rounded-xl flex-shrink-0">
-                            <i class="fas fa-chart-pie text-yellow-600 dark:text-yellow-400 text-xl md:text-2xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Card 2: Total Value -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-l-4 md:border-l-8 border-green-500 transform transition hover:scale-105">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                                <i class="fas fa-indian-rupee-sign mr-1 text-green-500"></i>
-                                <span class="truncate">TOTAL VALUE</span>
-                            </p>
-                            <p class="text-xl md:text-3xl font-bold text-gray-900 dark:text-white truncate">{{ formatCurrency(totalInventoryValue) }}</p>
-                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Avg ₹{{ Math.round(averagePricePerGram) }}/g
-                            </p>
-                        </div>
-                        <div class="bg-green-100 dark:bg-green-900 p-2 md:p-3 rounded-xl flex-shrink-0">
-                            <i class="fas fa-coins text-green-600 dark:text-green-400 text-xl md:text-2xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Card 3: Good Deals -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-l-4 md:border-l-8 border-blue-500 transform transition hover:scale-105">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                                <i class="fas fa-tag mr-1 text-blue-500"></i>
-                                <span class="truncate">GOOD DEALS</span>
-                            </p>
-                            <p class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{{ goodDealsCount }}</p>
-                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {{ ((goodDealsCount / allProducts.length * 100) || 0).toFixed(1) }}% of total
-                            </p>
-                        </div>
-                        <div class="bg-blue-100 dark:bg-blue-900 p-2 md:p-3 rounded-xl flex-shrink-0">
-                            <i class="fas fa-percent text-blue-600 dark:text-blue-400 text-xl md:text-2xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Card 4: Avg Discount -->
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-l-4 md:border-l-8 border-purple-500 transform transition hover:scale-105">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                                <i class="fas fa-chart-line mr-1 text-purple-500"></i>
-                                <span class="truncate">AVG DISCOUNT</span>
-                            </p>
-                            <p class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{{ averageDiscount }}%</p>
-                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Best: {{ maxDiscount }}% OFF
-                            </p>
-                        </div>
-                        <div class="bg-purple-100 dark:bg-purple-900 p-2 md:p-3 rounded-xl flex-shrink-0">
-                            <i class="fas fa-chart-pie text-purple-600 dark:text-purple-400 text-xl md:text-2xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Card 5: Sources (hidden on small screens, shown on lg) -->
-                <div class="hidden lg:block bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 border-l-8 border-orange-500 transform transition hover:scale-105">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                                <i class="fas fa-store mr-1 text-orange-500"></i>
-                                SOURCES
-                            </p>
-                            <p class="text-3xl font-bold text-gray-900 dark:text-white">{{ uniqueSources.length }}</p>
-                            <div class="flex items-center mt-3 space-x-2">
-                                <span class="text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 px-2 py-1 rounded-full">
-                                    AJIO: {{ allProducts.filter(p => p.source === 'AJIO').length }}
-                                </span>
-                                <span class="text-xs bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 px-2 py-1 rounded-full">
-                                    Myntra: {{ allProducts.filter(p => p.source === 'Myntra').length }}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="bg-orange-100 dark:bg-orange-900 p-3 rounded-xl">
-                            <i class="fas fa-store text-orange-600 dark:text-orange-400 text-2xl"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Mobile Sources Card (shown only on mobile) -->
-            <div class="lg:hidden bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-4 border-l-4 border-orange-500">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center">
-                            <i class="fas fa-store mr-1 text-orange-500"></i>
-                            SOURCES
-                        </p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ uniqueSources.length }}</p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <span class="text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 px-3 py-1.5 rounded-full">
-                            AJIO: {{ allProducts.filter(p => p.source === 'AJIO').length }}
-                        </span>
-                        <span class="text-xs bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 px-3 py-1.5 rounded-full">
-                            Myntra: {{ allProducts.filter(p => p.source === 'Myntra').length }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== RESPONSIVE CHARTS ========== -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6 lg:mb-8">
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                            <i class="fas fa-chart-line text-yellow-500 mr-2 text-sm md:text-lg"></i>
-                            Scan Activity
-                        </h3>
-                        <span class="text-[10px] md:text-xs bg-gray-100 dark:bg-gray-700 px-2 md:px-3 py-1 rounded-full text-gray-600 dark:text-gray-300">
-                            {{ scans.length }} scans
-                        </span>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="scansChart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                            <i class="fas fa-chart-pie text-yellow-500 mr-2 text-sm md:text-lg"></i>
-                            Source Distribution
-                        </h3>
-                        <span class="text-[10px] md:text-xs bg-gray-100 dark:bg-gray-700 px-2 md:px-3 py-1 rounded-full text-gray-600 dark:text-gray-300">
-                            {{ uniqueSources.length }} sources
-                        </span>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="distributionChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== RESPONSIVE TABS ========== -->
-            <div class="mb-4 md:mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-nowrap pb-1 hide-scrollbar">
-                <ul class="flex -mb-px text-xs md:text-sm font-medium">
-                    <li class="mr-2 md:mr-4">
-                        <button @click="activeTab = 'products'" 
-                                :class="{'border-yellow-500 text-yellow-600 dark:text-yellow-400': activeTab === 'products', 'border-transparent hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300': activeTab !== 'products'}"
-                                class="inline-flex items-center py-2 md:py-4 px-2 md:px-4 border-b-2 rounded-t-lg">
-                            <i class="fas fa-box mr-1 md:mr-2 text-sm"></i>
-                            <span class="hidden xs:inline">All</span> Products
-                            <span class="ml-1 md:ml-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 md:px-2 py-0.5 rounded-full text-xs">{{ filteredProducts.total || 0 }}</span>
-                        </button>
-                    </li>
-                    <li class="mr-2 md:mr-4">
-                        <button @click="activeTab = 'scans'" 
-                                :class="{'border-yellow-500 text-yellow-600 dark:text-yellow-400': activeTab === 'scans', 'border-transparent hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300': activeTab !== 'scans'}"
-                                class="inline-flex items-center py-2 md:py-4 px-2 md:px-4 border-b-2 rounded-t-lg">
-                            <i class="fas fa-history mr-1 md:mr-2 text-sm"></i>
-                            <span class="hidden xs:inline">Scan</span> History
-                            <span class="ml-1 md:ml-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 md:px-2 py-0.5 rounded-full text-xs">{{ scans.length }}</span>
-                        </button>
-                    </li>
-                    <li class="mr-2 md:mr-4">
-                        <button @click="activeTab = 'stats'" 
-                                :class="{'border-yellow-500 text-yellow-600 dark:text-yellow-400': activeTab === 'stats', 'border-transparent hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300': activeTab !== 'stats'}"
-                                class="inline-flex items-center py-2 md:py-4 px-2 md:px-4 border-b-2 rounded-t-lg">
-                            <i class="fas fa-chart-bar mr-1 md:mr-2 text-sm"></i>
-                            <span class="hidden xs:inline">Detailed</span> Stats
-                        </button>
-                    </li>
-                    <li>
-                        <button @click="activeTab = 'timeline'" 
-                                :class="{'border-yellow-500 text-yellow-600 dark:text-yellow-400': activeTab === 'timeline', 'border-transparent hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300': activeTab !== 'timeline'}"
-                                class="inline-flex items-center py-2 md:py-4 px-2 md:px-4 border-b-2 rounded-t-lg">
-                            <i class="fas fa-calendar-alt mr-1 md:mr-2 text-sm"></i>
-                            Timeline
-                        </button>
-                    </li>
-                </ul>
-            </div>
-
-            <!-- ========== PRODUCTS TAB ========== -->
-            <div v-if="activeTab === 'products'">
-                
-                <!-- Mobile Filter Toggle -->
-                <div class="lg:hidden flex justify-between items-center mb-3">
-                    <button @click="showMobileFilters = !showMobileFilters" 
-                            class="flex items-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-sm border dark:border-gray-700">
-                        <i class="fas fa-filter text-yellow-500"></i>
-                        <span class="text-sm font-medium">Filters</span>
-                        <span class="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-0.5 rounded-full text-xs">
-                            {{ activeFilterCount }}
-                        </span>
-                    </button>
-                    
-                    <div class="flex items-center space-x-2">
-                        <button @click="filters.onlyFavorites = !filters.onlyFavorites" 
-                                :class="filters.onlyFavorites ? 'text-yellow-500' : 'text-gray-400'"
-                                class="p-2 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-                            <i class="fas fa-star"></i>
-                        </button>
-                        
-                        <select v-model="sortBy" 
-                                class="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm p-2">
-                            <option value="discount_percent">Discount</option>
-                            <option value="price_per_gram">Price/g</option>
-                            <option value="selling_price">Price</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Mobile Filters Panel -->
-                <div v-if="showMobileFilters" class="lg:hidden bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mb-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-gray-900 dark:text-white">Filters</h3>
-                        <button @click="resetFilters" class="text-sm text-yellow-600">Reset All</button>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source</label>
-                            <div class="flex flex-wrap gap-2">
-                                <button v-for="source in uniqueSources" 
-                                        @click="filters.source = filters.source === source ? '' : source"
-                                        :class="['filter-chip', filters.source === source ? 'active' : '']">
-                                    <i class="fas fa-store mr-1"></i> {{ source }}
+                            <div class="flex flex-wrap gap-3">
+                                <button class="btn-secondary" @click="copyToClipboard(selectedScanId, 'Scan ID copied.')" :disabled="!selectedScanId">
+                                    <i class="fas fa-fingerprint"></i> Copy ID
+                                </button>
+                                <button class="btn-secondary" @click="activeTab = 'scans'">
+                                    <i class="fas fa-history"></i> Browse Archive
+                                </button>
+                                <button class="btn-primary" @click="returnToLatest" :disabled="selectedScanIsLatest || !latestScanId">
+                                    <i class="fas fa-bolt"></i> Return To Latest
                                 </button>
                             </div>
                         </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Purity</label>
-                            <div class="flex flex-wrap gap-2">
-                                <button v-for="purity in uniquePurities" 
-                                        @click="filters.purity = filters.purity === purity ? '' : purity"
-                                        :class="['filter-chip', filters.purity === purity ? 'active' : '']">
-                                    <i class="fas fa-gem mr-1"></i> {{ purity }}
-                                </button>
+                        <div class="mt-6 grid md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="kicker mb-3">Editorial Note</p>
+                                <p class="text-base md:text-lg leading-relaxed" style="color: var(--muted);">
+                                    Latest scans stay primary, but every archived run is selectable without blending datasets. Filters, export, and shortlist stay scoped to the scan you are actively reviewing.
+                                </p>
                             </div>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Min Discount</label>
-                            <select v-model.number="filters.min_discount" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm p-2">
-                                <option value="-3">All (incl. negative)</option>
-                                <option value="0">0%+</option>
-                                <option value="5">5%+</option>
-                                <option value="10">10%+ 🔥</option>
-                                <option value="15">15%+ 🔥🔥</option>
-                                <option value="20">20%+ 🚀</option>
-                                <option value="25">25%+ ⭐</option>
-                                <option value="30">30%+ 💎</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
-                            <div class="relative">
-                                <input type="text" v-model="filters.search" 
-                                       placeholder="Search products..." 
-                                       class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm p-2 pl-8">
-                                <i class="fas fa-search absolute left-2.5 top-3 text-gray-400 text-sm"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Desktop Filters -->
-                <div class="hidden lg:block bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-6">
-                    
-                    <!-- Active Filters Tags -->
-                    <div class="flex flex-wrap gap-2 mb-4">
-                        <span class="text-sm text-gray-600 dark:text-gray-400 mr-2 flex items-center">
-                            <i class="fas fa-filter mr-1"></i> Active:
-                        </span>
-                        <span v-if="filters.source" class="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-3 py-1 rounded-full text-xs flex items-center">
-                            <i class="fas fa-store mr-1"></i> {{ filters.source }}
-                            <button @click="filters.source = ''" class="ml-2 hover:text-red-600">×</button>
-                        </span>
-                        <span v-if="filters.purity" class="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-3 py-1 rounded-full text-xs flex items-center">
-                            <i class="fas fa-gem mr-1"></i> {{ filters.purity }}
-                            <button @click="filters.purity = ''" class="ml-2 hover:text-red-600">×</button>
-                        </span>
-                        <span v-if="filters.min_discount > 0" class="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-xs flex items-center">
-                            <i class="fas fa-percent mr-1"></i> ≥{{ filters.min_discount }}%
-                            <button @click="filters.min_discount = -3" class="ml-2 hover:text-red-600">×</button>
-                        </span>
-                        <span v-if="filters.onlyFavorites" class="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-xs flex items-center">
-                            <i class="fas fa-star mr-1"></i> Favorites
-                            <button @click="filters.onlyFavorites = false" class="ml-2 hover:text-red-600">×</button>
-                        </span>
-                        <span v-if="filters.search" class="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full text-xs flex items-center">
-                            <i class="fas fa-search mr-1"></i> "{{ filters.search }}"
-                            <button @click="filters.search = ''" class="ml-2 hover:text-red-600">×</button>
-                        </span>
-                        <span v-if="Object.values(filters).some(v => v !== '' && v !== -3 && v !== 100 && v !== 0 && v !== false)" 
-                              @click="resetFilters" 
-                              class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-3 py-1 rounded-full text-xs flex items-center cursor-pointer hover:bg-gray-200">
-                            <i class="fas fa-undo mr-1"></i> Clear all
-                        </span>
-                    </div>
-
-                    <!-- Desktop Filter Grid -->
-                    <div class="grid grid-cols-6 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Source</label>
-                            <select v-model="filters.source" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="">All Sources</option>
-                                <option v-for="source in uniqueSources" :value="source">{{ source }} ({{ allProducts.filter(p => p.source === source).length }})</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Purity</label>
-                            <select v-model="filters.purity" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="">All Purity</option>
-                                <option v-for="purity in uniquePurities" :value="purity">{{ purity }} ({{ allProducts.filter(p => p.purity === purity).length }})</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Min Discount</label>
-                            <select v-model.number="filters.min_discount" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="-3">All (incl. negative)</option>
-                                <option value="0">0%+</option>
-                                <option value="5">5%+</option>
-                                <option value="10">10%+ 🔥</option>
-                                <option value="15">15%+ 🔥🔥</option>
-                                <option value="20">20%+ 🚀</option>
-                                <option value="25">25%+ ⭐</option>
-                                <option value="30">30%+ 💎</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Max Discount</label>
-                            <select v-model.number="filters.max_discount" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="100">Any</option>
-                                <option value="10">≤10%</option>
-                                <option value="20">≤20%</option>
-                                <option value="30">≤30%</option>
-                                <option value="40">≤40%</option>
-                                <option value="50">≤50%</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Min Weight</label>
-                            <select v-model.number="filters.min_weight" 
-                                    class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500">
-                                <option value="0">Any</option>
-                                <option value="1">1g+</option>
-                                <option value="2">2g+</option>
-                                <option value="5">5g+</option>
-                                <option value="8">8g+</option>
-                                <option value="10">10g+</option>
-                                <option value="20">20g+</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search</label>
-                            <div class="relative">
-                                <input type="text" v-model="filters.search" 
-                                       placeholder="Product, brand..." 
-                                       class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500 pl-8">
-                                <i class="fas fa-search absolute left-2.5 top-2.5 text-gray-400 text-sm"></i>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Filter Actions -->
-                    <div class="flex justify-between items-center mt-4 pt-4 border-t dark:border-gray-700">
-                        <div class="text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-4">
-                            <span class="flex items-center">
-                                <i class="fas fa-cubes mr-1 text-yellow-500"></i>
-                                <strong>{{ filteredProducts.total }}</strong> products found
-                            </span>
-                            <span v-if="filteredFavoritesCount" class="flex items-center">
-                                <i class="fas fa-star mr-1 text-yellow-500"></i>
-                                {{ filteredFavoritesCount }} favorites
-                            </span>
-                        </div>
-                        
-                        <div class="flex items-center space-x-4">
-                            <button @click="filters.onlyFavorites = !filters.onlyFavorites" 
-                                    :class="filters.onlyFavorites ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'"
-                                    class="flex items-center text-sm transition-colors">
-                                <i class="fas fa-star mr-1"></i>
-                                Favorites only
-                            </button>
-                            
-                            <div class="flex items-center space-x-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">Sort:</span>
-                                <select v-model="sortBy" 
-                                        class="border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm">
-                                    <option value="discount_percent">Discount</option>
-                                    <option value="price_per_gram">Price/g</option>
-                                    <option value="selling_price">Price</option>
-                                    <option value="weight_grams">Weight</option>
-                                    <option value="timestamp">Date</option>
-                                </select>
-                                <button @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
-                                        class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                                    <i class="fas" :class="sortOrder === 'desc' ? 'fa-sort-down' : 'fa-sort-up'"></i>
-                                </button>
-                            </div>
-                            
-                            <button @click="resetFilters" 
-                                    class="text-sm text-gray-500 hover:text-yellow-600 dark:text-gray-400 dark:hover:text-yellow-400 flex items-center">
-                                <i class="fas fa-undo mr-1"></i> Reset
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Products Grid - Responsive -->
-                <div v-if="loadingProducts" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
-                    <div v-for="i in 6" :key="i" class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-3 md:p-4">
-                        <div class="skeleton h-32 sm:h-36 md:h-40 lg:h-48 rounded-lg mb-3"></div>
-                        <div class="skeleton h-3 w-3/4 mb-2"></div>
-                        <div class="skeleton h-3 w-1/2 mb-3"></div>
-                        <div class="skeleton h-8 w-full rounded-lg"></div>
-                    </div>
-                </div>
-                
-                <div v-else-if="paginatedProducts.length === 0" class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-6 md:p-12 text-center">
-                    <i class="fas fa-box-open text-4xl md:text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
-                    <h3 class="text-lg md:text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">No Products Found</h3>
-                    <p class="text-sm md:text-base text-gray-500 dark:text-gray-400 mb-4">Try adjusting your filters or run a new scan</p>
-                    <div class="flex flex-col sm:flex-row justify-center gap-2">
-                        <button @click="resetFilters" class="gold-gradient text-white px-4 md:px-6 py-2 md:py-3 rounded-lg text-sm md:text-base">
-                            <i class="fas fa-undo mr-2"></i> Clear Filters
-                        </button>
-                        <button @click="showScanModal = true" class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 md:px-6 py-2 md:py-3 rounded-lg text-sm md:text-base">
-                            <i class="fas fa-search mr-2"></i> New Scan
-                        </button>
-                    </div>
-                </div>
-                
-                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 lg:gap-6">
-                    <div v-for="product in paginatedProducts" :key="product.url + product.timestamp" 
-                         class="product-card bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg overflow-hidden">
-                        
-                        <!-- Product Image - Responsive -->
-                        <div class="relative product-image bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                            <img :src="product.image_url || 'https://placehold.co/400x400/FFD700/FFFFFF?text=Gold'" 
-                                 :alt="product.title"
-                                 class="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
-                                 @error="handleImageError">
-                            
-                            <!-- Discount Badge -->
-                            <span :class="'absolute top-2 right-2 md:top-4 md:right-4 px-2 md:px-3 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold shadow-lg ' + getDiscountClass(product.discount_percent)">
-                                <i class="fas fa-tag mr-1"></i>
-                                {{ product.discount_percent.toFixed(1) }}% OFF
-                            </span>
-                            
-                            <!-- Source Badge - Mobile Optimized -->
-                            <span class="absolute top-2 left-2 md:top-4 md:left-4 bg-white dark:bg-gray-900 px-2 md:px-3 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold shadow-lg flex items-center">
-                                <i :class="'fas ' + getSourceIcon(product.source) + ' mr-1'"></i>
-                                <span class="hidden xs:inline">{{ product.source }}</span>
-                            </span>
-                            
-                            <!-- Favorite Button - Mobile Optimized -->
-                            <button @click.stop="toggleFavorite(product)" 
-                                    class="absolute bottom-2 left-2 md:bottom-4 md:left-4 w-7 h-7 md:w-8 md:h-8 bg-white dark:bg-gray-900 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
-                                <i :class="isFavorite(product) ? 'fas fa-star text-yellow-500 text-sm md:text-base' : 'far fa-star text-gray-400 text-sm md:text-base'"></i>
-                            </button>
-                            
-                            <!-- Scan Date - Mobile Optimized -->
-                            <span class="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-black bg-opacity-75 text-white px-2 md:px-3 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs flex items-center">
-                                <i class="fas fa-clock mr-1"></i>
-                                <span class="hidden xs:inline">{{ formatDate(product.timestamp) }}</span>
-                                <span class="xs:hidden">{{ formatDate(product.timestamp).split(',')[0] }}</span>
-                            </span>
-                        </div>
-                        
-                        <!-- Product Info - Responsive -->
-                        <div class="p-3 md:p-5">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-[10px] md:text-xs font-semibold flex items-center">
-                                    <i :class="'fas ' + getTypeIcon(product.product_type) + ' mr-1 hidden xs:inline'"></i>
-                                    {{ product.purity }} • {{ product.weight_grams }}g
-                                </span>
-                                <span class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                    #{{ product.scan_id ? product.scan_id.substring(0, 4) : 'N/A' }}
-                                </span>
-                            </div>
-                            
-                            <h3 class="font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2 text-xs md:text-sm lg:text-base h-8 md:h-12">
-                                {{ product.title }}
-                            </h3>
-                            
-                            <div class="flex justify-between items-end mb-3">
-                                <div>
-                                    <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mb-1">Price</p>
-                                    <p class="text-sm md:text-base lg:text-xl font-bold text-green-600 dark:text-green-400">
-                                        ₹{{ product.selling_price.toLocaleString() }}
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mb-1">MRP</p>
-                                    <p class="text-[10px] md:text-xs text-gray-400 dark:text-gray-500 line-through">
-                                        ₹{{ product.expected_price.toLocaleString() }}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <!-- Price per gram - Mobile Optimized -->
-                            <div class="flex justify-between items-center text-[10px] md:text-xs text-gray-600 dark:text-gray-400 mb-3 p-2 md:p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                <span class="flex items-center">
-                                    <i class="fas fa-coins mr-1"></i>
-                                    ₹{{ Math.round(product.price_per_gram).toLocaleString() }}/g
-                                </span>
-                                <span class="flex items-center">
-                                    <i class="fas fa-cog mr-1"></i>
-                                    {{ product.making_charges_percent }}% making
-                                </span>
-                            </div>
-                            
-                            <!-- Action Buttons - Mobile Optimized -->
-                            <div class="flex space-x-2">
-                                <a :href="product.url" target="_blank"
-                                   class="flex-1 gold-gradient text-white font-semibold py-2 md:py-2.5 px-2 md:px-4 rounded-lg flex items-center justify-center text-[10px] md:text-xs lg:text-sm hover:opacity-90 transition hover:scale-105">
-                                    <i class="fas fa-external-link-alt mr-1 md:mr-2"></i>
-                                    <span class="hidden xs:inline">View</span> Deal
-                                </a>
-                                <button @click="setPriceAlert(product)" 
-                                        class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 p-2 md:p-2.5 rounded-lg transition hover:scale-105 tooltip"
-                                        data-tooltip="Set price alert">
-                                    <i class="fas fa-bell text-xs md:text-sm"></i>
-                                </button>
-                                <button @click="shareProduct(product)" 
-                                        class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 p-2 md:p-2.5 rounded-lg transition hover:scale-105 tooltip lg:inline-flex hidden"
-                                        data-tooltip="Share">
-                                    <i class="fas fa-share-alt text-xs md:text-sm"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Responsive Pagination -->
-                <div v-if="filteredProducts.total > 0" class="mt-6 md:mt-8">
-                    <!-- Desktop Pagination -->
-                    <div class="hidden md:flex justify-between items-center">
-                        <div class="text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-4">
-                            <span class="flex items-center">
-                                <i class="fas fa-cubes mr-1"></i>
-                                Showing <strong class="mx-1">{{ pageRange }}</strong> of <strong>{{ filteredProducts.total }}</strong>
-                            </span>
-                            <span class="flex items-center">
-                                <i class="fas fa-arrow-left mr-1"></i>
-                                Page <strong class="mx-1">{{ currentPage }}</strong> of <strong>{{ totalPages }}</strong>
-                            </span>
-                        </div>
-                        
-                        <div class="flex items-center space-x-2">
-                            <button @click="goToPage(1)" :disabled="currentPage === 1"
-                                    class="px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                <i class="fas fa-angle-double-left"></i>
-                            </button>
-                            
-                            <button @click="prevPage" :disabled="currentPage === 1"
-                                    class="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                <i class="fas fa-chevron-left mr-2"></i> Previous
-                            </button>
-                            
-                            <div class="flex space-x-1">
-                                <button v-for="page in Math.min(5, totalPages)" 
-                                        :key="page"
-                                        @click="goToPage(page)"
-                                        :class="[
-                                            'w-10 h-10 rounded-lg transition-colors',
-                                            currentPage === page 
-                                                ? 'bg-yellow-500 text-white' 
-                                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 border dark:border-gray-700'
-                                        ]">
-                                    {{ page }}
-                                </button>
-                                <span v-if="totalPages > 5" class="px-2 flex items-center">...</span>
-                            </div>
-                            
-                            <button @click="nextPage" :disabled="currentPage === totalPages"
-                                    class="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                Next <i class="fas fa-chevron-right ml-2"></i>
-                            </button>
-                            
-                            <button @click="goToPage(totalPages)" :disabled="currentPage === totalPages"
-                                    class="px-3 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                <i class="fas fa-angle-double-right"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Mobile Pagination -->
-                    <div class="flex md:hidden flex-col items-center space-y-3">
-                        <div class="text-sm text-gray-600 dark:text-gray-400">
-                            Showing {{ pageRange }} of {{ filteredProducts.total }} products
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button @click="prevPage" :disabled="currentPage === 1"
-                                    class="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 flex items-center"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                <i class="fas fa-chevron-left mr-2"></i> Prev
-                            </button>
-                            <span class="px-4 py-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-lg font-medium">
-                                {{ currentPage }} / {{ totalPages }}
-                            </span>
-                            <button @click="nextPage" :disabled="currentPage === totalPages"
-                                    class="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 flex items-center"
-                                    :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
-                                Next <i class="fas fa-chevron-right ml-2"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== SCAN HISTORY TAB (Responsive) ========== -->
-            <div v-if="activeTab === 'scans'" class="slide-in">
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                    <div class="flex justify-between items-center mb-4 md:mb-6">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                            <i class="fas fa-history mr-2 text-yellow-500"></i>
-                            Scan History
-                        </h3>
-                        <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400">Total: {{ scans.length }} scans</span>
-                    </div>
-                    
-                    <!-- Mobile Scan History Cards -->
-                    <div class="md:hidden space-y-3">
-                        <div v-for="scan in scans" :key="scan.scan_id" 
-                             class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <span class="text-xs font-medium text-gray-900 dark:text-white">ID: {{ scan.scan_id.substring(0, 8) }}</span>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ formatDateTime(scan.timestamp) }}</p>
-                                </div>
-                                <span class="px-2 py-1 text-xs font-semibold rounded-full" 
-                                      :class="scan.good_deals > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300'">
-                                    {{ scan.good_deals }} deals
-                                </span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <div class="text-xs">
-                                    <span class="text-gray-600 dark:text-gray-400">Products:</span>
-                                    <span class="font-bold text-gray-900 dark:text-white ml-1">{{ scan.total_products }}</span>
-                                    <span class="mx-2 text-gray-400">•</span>
-                                    <span class="text-gray-600 dark:text-gray-400">Avg Discount:</span>
-                                    <span class="font-bold text-gray-900 dark:text-white ml-1">{{ scan.avg_discount }}%</span>
-                                </div>
-                                <button @click="loadScanDetails(scan.scan_id)" 
-                                        class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 text-sm flex items-center">
-                                    <i class="fas fa-eye mr-1"></i> View
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Desktop Scan History Table -->
-                    <div class="hidden md:block overflow-x-auto responsive-table">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead>
-                                <tr>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Scan ID</th>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date & Time</th>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Products</th>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Good Deals</th>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg Discount</th>
-                                    <th class="px-6 py-3 bg-gray-50 dark:bg-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                <tr v-for="scan in scans" :key="scan.scan_id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ scan.scan_id.substring(0, 8) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                        {{ formatDateTime(scan.timestamp) }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                        <span class="font-bold">{{ scan.total_products }}</span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full" 
-                                              :class="scan.good_deals > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'">
-                                            {{ scan.good_deals }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                        {{ scan.avg_discount }}%
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button @click="loadScanDetails(scan.scan_id)" 
-                                                class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300 mr-3">
-                                            <i class="fas fa-eye"></i> View
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== STATS TAB (Responsive) ========== -->
-            <div v-if="activeTab === 'stats'" class="slide-in">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                    <!-- Source Distribution -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                            <i class="fas fa-store mr-2 text-yellow-500"></i>
-                            Source Distribution
-                        </h3>
-                        <div class="space-y-3">
-                            <div v-for="(count, source) in stats.historical?.source_distribution" :key="source"
-                                 class="flex items-center">
-                                <span class="w-16 md:w-24 text-xs md:text-sm text-gray-600 dark:text-gray-400">{{ source }}</span>
-                                <div class="flex-1 mx-2 md:mx-4">
-                                    <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 md:h-2.5">
-                                        <div class="bg-yellow-500 h-2 md:h-2.5 rounded-full" 
-                                             :style="{ width: (count / stats.historical?.total_products_ever * 100) + '%' }"></div>
-                                    </div>
-                                </div>
-                                <span class="text-xs md:text-sm font-bold text-gray-900 dark:text-white">{{ count }}</span>
-                                <span class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 ml-1 md:ml-2">
-                                    ({{ ((count / stats.historical?.total_products_ever * 100) || 0).toFixed(1) }}%)
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Purity Distribution -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                            <i class="fas fa-gem mr-2 text-yellow-500"></i>
-                            Purity Distribution
-                        </h3>
-                        <div class="space-y-3">
-                            <div v-for="(count, purity) in stats.historical?.purity_distribution" :key="purity"
-                                 class="flex items-center">
-                                <span class="w-16 md:w-24 text-xs md:text-sm text-gray-600 dark:text-gray-400">{{ purity }}</span>
-                                <div class="flex-1 mx-2 md:mx-4">
-                                    <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 md:h-2.5">
-                                        <div class="bg-purple-500 h-2 md:h-2.5 rounded-full" 
-                                             :style="{ width: (count / stats.historical?.total_products_ever * 100) + '%' }"></div>
-                                    </div>
-                                </div>
-                                <span class="text-xs md:text-sm font-bold text-gray-900 dark:text-white">{{ count }}</span>
-                                <span class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 ml-1 md:ml-2">
-                                    ({{ ((count / stats.historical?.total_products_ever * 100) || 0).toFixed(1) }}%)
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Best Deal Ever -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6 lg:col-span-2">
-                        <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                            <i class="fas fa-trophy mr-2 text-yellow-500"></i>
-                            Best Deal Ever Found
-                        </h3>
-                        <div v-if="stats.historical?.best_deal_ever" 
-                             class="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900 dark:to-orange-900 rounded-xl p-4 md:p-6 border border-yellow-200 dark:border-yellow-800">
-                            <div class="flex flex-col sm:flex-row items-start justify-between">
-                                <div class="w-full sm:w-auto">
-                                    <div class="flex flex-wrap items-center mb-2">
-                                        <span class="bg-red-500 text-white px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-bold mr-2">
-                                            {{ stats.historical.best_deal_ever.discount.toFixed(1) }}% OFF
-                                        </span>
-                                        <span class="text-xs md:text-sm text-gray-600 dark:text-gray-400">
-                                            {{ stats.historical.best_deal_ever.source }}
-                                        </span>
-                                    </div>
-                                    <h4 class="text-sm md:text-base lg:text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">
-                                        {{ stats.historical.best_deal_ever.title }}
-                                    </h4>
-                                    <div class="grid grid-cols-3 gap-2 md:gap-4 mt-2 md:mt-4">
-                                        <div>
-                                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">Weight</p>
-                                            <p class="text-xs md:text-sm font-bold text-gray-900 dark:text-white">{{ stats.historical.best_deal_ever.weight }}g</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">Purity</p>
-                                            <p class="text-xs md:text-sm font-bold text-gray-900 dark:text-white">{{ stats.historical.best_deal_ever.purity }}</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400">Price</p>
-                                            <p class="text-xs md:text-sm font-bold text-gray-900 dark:text-white">₹{{ stats.historical.best_deal_ever.price.toLocaleString() }}</p>
-                                        </div>
-                                    </div>
-                                    <p class="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 mt-2 md:mt-4">
-                                        Found on {{ formatDateTime(stats.historical.best_deal_ever.timestamp) }}
-                                    </p>
-                                </div>
-                                <div class="bg-yellow-100 dark:bg-yellow-800 p-3 md:p-4 rounded-full mt-3 sm:mt-0">
-                                    <i class="fas fa-crown text-xl md:text-3xl text-yellow-600 dark:text-yellow-400"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== TIMELINE TAB ========== -->
-            <div v-if="activeTab === 'timeline'" class="slide-in">
-                <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6">
-                    <h3 class="text-base md:text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-                        <i class="fas fa-calendar-alt mr-2 text-yellow-500"></i>
-                        Scan Timeline
-                    </h3>
-                    <div class="chart-container" style="height: 250px; md:height: 300px; lg:height: 400px;">
-                        <canvas id="timelineChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========== MOBILE BOTTOM NAVIGATION ========== -->
-        <div class="mobile-bottom-nav">
-            <button @click="activeTab = 'products'" class="mobile-nav-item" :class="{'active': activeTab === 'products'}">
-                <i class="fas fa-box text-xl"></i>
-                <span class="text-xs mt-1">Products</span>
-                <span v-if="filteredProducts.total > 0" class="text-[10px] bg-yellow-500 text-white px-1.5 rounded-full -mt-1">{{ filteredProducts.total }}</span>
-            </button>
-            
-            <button @click="activeTab = 'scans'" class="mobile-nav-item" :class="{'active': activeTab === 'scans'}">
-                <i class="fas fa-history text-xl"></i>
-                <span class="text-xs mt-1">History</span>
-            </button>
-            
-            <button @click="showScanModal = true" class="mobile-nav-item">
-                <div class="gold-gradient p-2 rounded-full -mt-5 shadow-lg">
-                    <i class="fas fa-search text-white text-xl"></i>
-                </div>
-                <span class="text-xs mt-1">Scan</span>
-            </button>
-            
-            <button @click="showFavoritesModal = true" class="mobile-nav-item">
-                <i class="fas fa-star text-xl"></i>
-                <span class="text-xs mt-1">Fav</span>
-                <span v-if="favorites.length" class="text-[10px] bg-red-500 text-white px-1.5 rounded-full -mt-1">{{ favorites.length }}</span>
-            </button>
-            
-            <button @click="mobileMenuOpen = true" class="mobile-nav-item">
-                <i class="fas fa-bars text-xl"></i>
-                <span class="text-xs mt-1">Menu</span>
-            </button>
-        </div>
-
-        <!-- ========== MODALS (Responsive) ========== -->
-        <!-- New Scan Modal -->
-        <div v-if="showScanModal" class="fixed inset-0 z-50 overflow-y-auto" @keydown.esc="showScanModal = false">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-24 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity dark:bg-gray-900 dark:bg-opacity-80" @click="showScanModal = false"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-[95%] mx-auto">
-                    
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900 sm:mx-0 sm:h-10 sm:w-10">
-                                <i class="fas fa-search text-yellow-600 dark:text-yellow-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-bold text-gray-900 dark:text-white">
-                                    Start New Scan
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        This will scrape the latest gold products from AJIO and Myntra.
-                                    </p>
-                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">
-                                        <i class="fas fa-info-circle mr-1"></i>
-                                        Last scan: {{ scanTimeFormatted }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button @click="startNewScan" :disabled="scanning"
-                                type="button"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 gold-gradient text-base font-medium text-white hover:opacity-90 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 transition-all">
-                            <i class="fas" :class="scanning ? 'fa-spinner fa-spin' : 'fa-play'"></i>
-                            {{ scanning ? 'Scanning...' : 'Start Scan' }}
-                        </button>
-                        <button @click="showScanModal = false"
-                                type="button"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Export Modal -->
-        <div v-if="showExportModal" class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-24 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity dark:bg-gray-900 dark:bg-opacity-80" @click="showExportModal = false"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-[95%] mx-auto">
-                    
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 sm:mx-0 sm:h-10 sm:w-10">
-                                <i class="fas fa-download text-green-600 dark:text-green-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-bold text-gray-900 dark:text-white">
-                                    Export Products
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                        Export {{ filteredProducts.total }} products to your preferred format.
-                                    </p>
-                                    
-                                    <div class="flex justify-center sm:justify-start space-x-4">
-                                        <label class="flex items-center space-x-2">
-                                            <input type="radio" v-model="exportFormat" value="csv" class="text-yellow-500">
-                                            <span class="text-sm text-gray-700 dark:text-gray-300">CSV</span>
-                                        </label>
-                                        <label class="flex items-center space-x-2">
-                                            <input type="radio" v-model="exportFormat" value="json" class="text-yellow-500">
-                                            <span class="text-sm text-gray-700 dark:text-gray-300">JSON</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button @click="exportData" :disabled="exporting"
-                                type="button"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 transition-all">
-                            <i class="fas" :class="exporting ? 'fa-spinner fa-spin' : 'fa-download'"></i>
-                            {{ exporting ? 'Exporting...' : 'Export' }}
-                        </button>
-                        <button @click="showExportModal = false"
-                                type="button"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Favorites Modal (Responsive) -->
-        <div v-if="showFavoritesModal" class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-24 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity dark:bg-gray-900 dark:bg-opacity-80" @click="showFavoritesModal = false"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full w-[95%] mx-auto">
-                    
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6">
-                        <div class="flex justify-between items-start">
-                            <h3 class="text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                <i class="fas fa-star text-yellow-500 mr-2"></i>
-                                Favorites ({{ favorites.length }})
-                            </h3>
-                            <button @click="showFavoritesModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        
-                        <div class="mt-4 max-h-96 overflow-y-auto">
-                            <div v-if="favoriteProducts.length === 0" class="text-center py-8">
-                                <i class="far fa-star text-4xl md:text-5xl text-gray-300 dark:text-gray-600 mb-4"></i>
-                                <p class="text-sm md:text-base text-gray-500 dark:text-gray-400">No favorites yet.</p>
-                            </div>
-                            <div v-else class="space-y-3">
-                                <div v-for="item in favoriteProducts" :key="item.url" 
-                                     class="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg gap-2">
-                                    <div class="flex-1">
-                                        <p class="font-medium text-sm md:text-base text-gray-900 dark:text-white">{{ item.title }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {{ item.purity }} • {{ item.weight_grams }}g • ₹{{ item.selling_price.toLocaleString() }} • {{ item.discount_percent }}% off
-                                        </p>
-                                    </div>
-                                    <div class="flex items-center space-x-2 self-end sm:self-center">
-                                        <a :href="item.url" target="_blank" 
-                                           class="text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 p-2">
-                                            <i class="fas fa-external-link-alt"></i>
-                                        </a>
-                                        <button @click="toggleFavorite(item)" 
-                                                class="text-red-500 hover:text-red-600 p-2">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button @click="showFavoritesModal = false"
-                                type="button"
-                                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:w-auto sm:text-sm">
-                            Close
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Price Alert Modal (Responsive) -->
-        <div v-if="showPriceAlertModal" class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-24 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity dark:bg-gray-900 dark:bg-opacity-80" @click="showPriceAlertModal = false"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-[95%] mx-auto">
-                    
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
-                                <i class="fas fa-bell text-red-600 dark:text-red-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-bold text-gray-900 dark:text-white">
-                                    Set Price Alert
-                                </h3>
-                                <div class="mt-2">
-                                    <div v-if="alertProduct" class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mb-4">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ alertProduct.title }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Current: ₹{{ alertProduct.selling_price.toLocaleString() }}</p>
-                                    </div>
-                                    
+                            <div class="grid gap-3">
+                                <div class="mini-card flex items-center justify-between">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Target Price (₹)
-                                        </label>
-                                        <input type="number" v-model.number="alertPrice" 
-                                               class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-yellow-500 focus:border-yellow-500 p-2">
+                                        <div class="kicker mb-1">Scan Scope</div>
+                                        <div class="font-bold">{{ selectedScanIsLatest ? 'Live baseline' : 'Historical drill-down' }}</div>
                                     </div>
+                                    <i class="fas fa-layer-group text-xl" style="color: var(--accent);"></i>
+                                </div>
+                                <div class="mini-card flex items-center justify-between">
+                                    <div>
+                                        <div class="kicker mb-1">Spot Benchmark</div>
+                                        <div class="font-bold">{{ liveSpotPrice ? formatCurrency(liveSpotPrice) + '/g' : 'Pending feed' }}</div>
+                                    </div>
+                                    <i class="fas fa-chart-line text-xl" style="color: var(--accent);"></i>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button @click="savePriceAlert" 
-                                type="button"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm transition-all">
-                            <i class="fas fa-bell mr-2"></i>
-                            Set Alert
-                        </button>
-                        <button @click="showPriceAlertModal = false"
-                                type="button"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
+
+                    <div class="hero-aside">
+                        <div class="surface-strong p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <div class="kicker">Preview Rail</div>
+                                    <h3 class="display-font text-2xl font-bold">Top Of This Scan</h3>
+                                </div>
+                                <button class="btn-ghost p-0" @click="activeTab = 'products'">Open grid</button>
+                            </div>
+                            <div class="preview-grid" v-if="latestProductsPreview.length">
+                                <div class="mini-card" v-for="product in latestProductsPreview" :key="product.url">
+                                    <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color: var(--muted);">
+                                        {{ product.source }} · {{ product.brand || 'Unknown' }}
+                                    </div>
+                                    <div class="font-bold leading-snug">{{ product.title }}</div>
+                                    <div class="mt-3 flex items-center justify-between text-sm">
+                                        <span>{{ formatWeight(product.weight_grams) }}</span>
+                                        <span :class="discountTone(product.discount_percent)" class="font-bold">{{ formatPercent(product.discount_percent) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else class="text-sm" style="color: var(--muted);">No products available for preview.</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Product Details Modal (Responsive) -->
-        <div v-if="selectedProduct" class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-24 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity dark:bg-gray-900 dark:bg-opacity-80" @click="selectedProduct = null"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full w-[95%] mx-auto">
-                    
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6">
-                        <div class="flex justify-between items-start">
-                            <h3 class="text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-4">Product Details</h3>
-                            <button @click="selectedProduct = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2">
-                                <i class="fas fa-times"></i>
+                <div class="banner" v-if="selectedScanId && !selectedScanIsLatest">
+                    <div>
+                        <div class="font-bold">Viewing archived scan {{ selectedScanId.substring(0, 8) }}</div>
+                        <div class="text-sm" style="color: var(--muted);">The product grid, filters, and exports are scoped to this historical run.</div>
+                    </div>
+                    <button class="btn-primary" @click="returnToLatest">
+                        <i class="fas fa-arrow-up-right-from-square"></i> Jump To Latest
+                    </button>
+                </div>
+            </section>
+
+            <section class="metric-grid">
+                <article class="metric-card">
+                    <div class="metric-label">Products In Scan</div>
+                    <div class="metric-value">{{ allProducts.length }}</div>
+                    <div class="metric-subtext">{{ sortedProducts.length }} visible after filters</div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-label">Average Discount</div>
+                    <div class="metric-value" :class="discountTone(averageDiscount)">{{ formatPercent(averageDiscount) }}</div>
+                    <div class="metric-subtext">Best deal {{ bestCurrentDeal ? formatPercent(bestCurrentDeal.discount_percent) : 'N/A' }}</div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-label">Average Price / Gram</div>
+                    <div class="metric-value">{{ formatCurrency(averagePricePerGram) }}</div>
+                    <div class="metric-subtext">Spot {{ liveSpotPrice ? formatCurrency(liveSpotPrice) : 'N/A' }}</div>
+                </article>
+                <article class="metric-card">
+                    <div class="metric-label">Inventory Value</div>
+                    <div class="metric-value">{{ formatCurrency(totalInventoryValue) }}</div>
+                    <div class="metric-subtext">{{ goodDealsCount }} products at 10%+ discount</div>
+                </article>
+            </section>
+
+            <section class="mt-4">
+                <div class="alert-card mb-4" v-if="bootError">
+                    <div class="text-2xl mb-3"><i class="fas fa-triangle-exclamation" style="color: var(--negative);"></i></div>
+                    <div class="display-font text-3xl font-bold mb-2">Dashboard Problem</div>
+                    <p style="color: var(--muted);">{{ bootError }}</p>
+                    <div class="mt-5 flex justify-center gap-3 flex-wrap">
+                        <button class="btn-primary" @click="refreshData"><i class="fas fa-sync-alt"></i> Retry</button>
+                        <button class="btn-secondary" @click="activeTab = 'scans'"><i class="fas fa-history"></i> Open Archive</button>
+                    </div>
+                </div>
+
+                <div class="tab-row">
+                    <button class="tab-btn" :class="{ active: activeTab === 'products' }" @click="activeTab = 'products'">
+                        <i class="fas fa-gem mr-2"></i>Product Deck
+                    </button>
+                    <button class="tab-btn" :class="{ active: activeTab === 'scans' }" @click="activeTab = 'scans'">
+                        <i class="fas fa-history mr-2"></i>Scan Archive
+                    </button>
+                    <button class="tab-btn" :class="{ active: activeTab === 'insights' }" @click="activeTab = 'insights'">
+                        <i class="fas fa-chart-pie mr-2"></i>Insights
+                    </button>
+                </div>
+
+                <section v-show="activeTab === 'products'">
+                    <div class="toolbar-card">
+                        <div class="flex items-center justify-between gap-4 mb-4 flex-wrap">
+                            <div>
+                                <div class="kicker">Workbench</div>
+                                <h3 class="display-font text-3xl font-bold">Filter The Active Scan</h3>
+                            </div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <button class="btn-secondary lg:hidden" @click="showMobileFilters = !showMobileFilters">
+                                    <i class="fas fa-sliders-h"></i> Filters {{ activeFilterCount ? '(' + activeFilterCount + ')' : '' }}
+                                </button>
+                                <button class="btn-secondary" @click="filters.onlyFavorites = !filters.onlyFavorites">
+                                    <i class="fas fa-star"></i> {{ filters.onlyFavorites ? 'Showing shortlist' : 'Shortlist only' }}
+                                </button>
+                                <button class="btn-ghost" @click="resetFilters">Reset</button>
+                            </div>
+                        </div>
+
+                        <div class="chip-row" v-if="activeFilterCount">
+                            <span class="chip" v-if="filters.source"><i class="fas fa-store"></i>{{ filters.source }}</span>
+                            <span class="chip" v-if="filters.purity"><i class="fas fa-gem"></i>{{ filters.purity }}</span>
+                            <span class="chip" v-if="filters.search"><i class="fas fa-magnifying-glass"></i>{{ filters.search }}</span>
+                            <span class="chip" v-if="filters.onlyFavorites"><i class="fas fa-star"></i>Shortlist</span>
+                            <span class="chip" v-if="filters.min_discount !== -100"><i class="fas fa-percent"></i>Min {{ filters.min_discount }}%</span>
+                            <span class="chip" v-if="filters.max_discount !== 100"><i class="fas fa-percent"></i>Max {{ filters.max_discount }}%</span>
+                        </div>
+
+                        <div class="toolbar-grid" v-show="showMobileFilters || isDesktop">
+                            <div>
+                                <label class="field-label">Search</label>
+                                <input id="search-input" class="input-field" type="text" v-model="filters.search" placeholder="Title, brand, source">
+                            </div>
+                            <div>
+                                <label class="field-label">Source</label>
+                                <select class="select-field" v-model="filters.source">
+                                    <option value="">All sources</option>
+                                    <option v-for="source in uniqueSources" :key="source" :value="source">{{ source }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">Purity</label>
+                                <select class="select-field" v-model="filters.purity">
+                                    <option value="">All purity</option>
+                                    <option v-for="purity in uniquePurities" :key="purity" :value="purity">{{ purity }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">Min Discount</label>
+                                <input class="input-field" type="number" v-model.number="filters.min_discount" step="1">
+                            </div>
+                            <div>
+                                <label class="field-label">Max Discount</label>
+                                <input class="input-field" type="number" v-model.number="filters.max_discount" step="1">
+                            </div>
+                            <div>
+                                <label class="field-label">Min Weight (g)</label>
+                                <input class="input-field" type="number" v-model.number="filters.min_weight" step="0.1">
+                            </div>
+                            <div>
+                                <label class="field-label">Max Weight (g)</label>
+                                <input class="input-field" type="number" v-model.number="filters.max_weight" step="0.1">
+                            </div>
+                            <div>
+                                <label class="field-label">Sort Field</label>
+                                <select class="select-field" v-model="sortBy">
+                                    <option value="discount_percent">Discount</option>
+                                    <option value="selling_price">Selling Price</option>
+                                    <option value="price_per_gram">Price / Gram</option>
+                                    <option value="weight_grams">Weight</option>
+                                    <option value="timestamp">Timestamp</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">Sort Direction</label>
+                                <select class="select-field" v-model="sortOrder">
+                                    <option value="desc">Descending</option>
+                                    <option value="asc">Ascending</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">Per Page</label>
+                                <select class="select-field" v-model.number="itemsPerPage">
+                                    <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="loadingProducts" class="empty-state">
+                        <div class="pulse-orb"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="display-font text-3xl font-bold mb-2">Loading Scan</div>
+                        <p style="color: var(--muted);">Pulling product details for the selected scan.</p>
+                    </div>
+
+                    <div v-else-if="!paginatedProducts.length" class="empty-state">
+                        <div class="text-4xl mb-4"><i class="fas fa-box-open" style="color: var(--accent);"></i></div>
+                        <div class="display-font text-3xl font-bold mb-2">No Products Match</div>
+                        <p style="color: var(--muted);">Adjust the current filters or return to the latest scan.</p>
+                        <div class="mt-5 flex justify-center gap-3 flex-wrap">
+                            <button class="btn-primary" @click="resetFilters"><i class="fas fa-rotate-left"></i> Reset Filters</button>
+                            <button class="btn-secondary" @click="returnToLatest" :disabled="selectedScanIsLatest"><i class="fas fa-bolt"></i> Return To Latest</button>
+                        </div>
+                    </div>
+
+                    <div v-else>
+                        <div class="product-grid">
+                            <article class="product-card" v-for="product in paginatedProducts" :key="product.url">
+                                <div class="product-media">
+                                    <img :src="product.image_url || 'https://placehold.co/640x640/f1e7cf/4f3a14?text=Gold+Deal'" :alt="product.title" @error="handleImageError">
+                                    <div class="absolute top-3 left-3 flex gap-2 flex-wrap">
+                                        <span class="pill"><i class="fas fa-store"></i>{{ product.source }}</span>
+                                        <span class="pill neutral">{{ product.purity }}</span>
+                                    </div>
+                                    <button class="icon-btn absolute top-3 right-3" @click="toggleFavorite(product)">
+                                        <i class="fas" :class="isFavorite(product) ? 'fa-star' : 'fa-star-half-stroke'" :style="{ color: isFavorite(product) ? 'var(--accent)' : 'white' }"></i>
+                                    </button>
+                                </div>
+                                <div class="product-body">
+                                    <div class="text-xs font-semibold uppercase tracking-wide" style="color: var(--muted);">{{ product.brand || 'Unknown brand' }}</div>
+                                    <h4 class="text-lg font-bold leading-snug mt-2">{{ product.title }}</h4>
+                                    <div class="product-meta">
+                                        <span class="meta-badge">{{ formatWeight(product.weight_grams) }}</span>
+                                        <span class="meta-badge">{{ product.product_type || 'product' }}</span>
+                                        <span class="meta-badge">{{ formatDate(product.timestamp) }}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+                                        <div>
+                                            <div style="color: var(--muted);">Selling</div>
+                                            <div class="font-bold text-lg">{{ formatCurrency(product.selling_price) }}</div>
+                                        </div>
+                                        <div>
+                                            <div style="color: var(--muted);">Expected</div>
+                                            <div class="font-bold text-lg">{{ formatCurrency(product.expected_price) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div>
+                                            <div style="color: var(--muted);" class="text-sm">Price / g</div>
+                                            <div class="font-bold">{{ formatCurrency(product.price_per_gram) }}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div style="color: var(--muted);" class="text-sm">Discount</div>
+                                            <div class="font-bold text-xl" :class="discountTone(product.discount_percent)">{{ formatPercent(product.discount_percent) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <button class="btn-secondary" @click="viewProductDetails(product)"><i class="fas fa-eye"></i></button>
+                                        <button class="btn-secondary" @click="shareProduct(product)"><i class="fas fa-share-nodes"></i></button>
+                                        <a class="btn-primary text-center" :href="product.url" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="pagination-row">
+                            <div style="color: var(--muted);">Showing {{ paginatedProducts.length }} of {{ sortedProducts.length }} filtered products</div>
+                            <div class="page-list">
+                                <button class="page-dot" @click="prevPage" :disabled="currentPage === 1"><i class="fas fa-chevron-left"></i></button>
+                                <button class="page-dot" v-for="page in pageNumbers" :key="page" :class="{ active: currentPage === page }" @click="goToPage(page)">{{ page }}</button>
+                                <button class="page-dot" @click="nextPage" :disabled="currentPage === totalPages"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section v-show="activeTab === 'scans'">
+                    <div class="surface-strong p-5 mb-4">
+                        <div class="flex items-center justify-between gap-4 flex-wrap mb-4">
+                            <div>
+                                <div class="kicker">Archive</div>
+                                <h3 class="display-font text-3xl font-bold">Recent Scan Timeline</h3>
+                            </div>
+                            <button class="btn-primary" @click="returnToLatest" :disabled="selectedScanIsLatest || !latestScanId">
+                                <i class="fas fa-bolt"></i> Restore Latest Context
                             </button>
                         </div>
-                        
-                        <div v-if="selectedProduct" class="space-y-4">
-                            <div class="grid grid-cols-2 gap-3 md:gap-4">
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Source</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ selectedProduct.source }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Brand</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ selectedProduct.brand }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Purity</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ selectedProduct.purity }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Weight</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ selectedProduct.weight_grams }}g</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Type</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ selectedProduct.product_type }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Scan Date</p>
-                                    <p class="text-sm md:text-base font-bold text-gray-900 dark:text-white">{{ formatDateTime(selectedProduct.timestamp) }}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                <h4 class="font-bold text-gray-900 dark:text-white mb-2">Price Breakdown</h4>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-600 dark:text-gray-400">Selling Price:</span>
-                                        <span class="font-bold text-green-600 dark:text-green-400">₹{{ selectedProduct.selling_price.toLocaleString() }}</span>
+                        <div class="scan-grid" v-if="scans.length">
+                            <article class="scan-card" v-for="scan in scans" :key="scan.scan_id" :class="{ active: selectedScanId === scan.scan_id }">
+                                <div class="flex items-center justify-between gap-4 mb-4">
+                                    <div>
+                                        <div class="kicker">Scan ID</div>
+                                        <div class="display-font text-2xl font-bold">{{ scan.scan_id.substring(0, 8) }}</div>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-600 dark:text-gray-400">Expected Price:</span>
-                                        <span class="text-gray-400 dark:text-gray-500 line-through">₹{{ selectedProduct.expected_price.toLocaleString() }}</span>
+                                    <span class="pill" :class="scan.good_deals ? '' : 'neutral'">
+                                        <i class="fas fa-tag"></i>{{ scan.good_deals }} good deals
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+                                    <div>
+                                        <div style="color: var(--muted);">Captured</div>
+                                        <div class="font-bold">{{ formatDateTime(scan.timestamp) }}</div>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-600 dark:text-gray-400">Discount:</span>
-                                        <span :class="'font-bold ' + (selectedProduct.discount_percent > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')">
-                                            {{ selectedProduct.discount_percent.toFixed(1) }}%
-                                        </span>
+                                    <div>
+                                        <div style="color: var(--muted);">Products</div>
+                                        <div class="font-bold">{{ scan.total_products }}</div>
                                     </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-600 dark:text-gray-400">Price/gram:</span>
-                                        <span class="font-bold text-gray-900 dark:text-white">₹{{ Math.round(selectedProduct.price_per_gram).toLocaleString() }}</span>
+                                    <div>
+                                        <div style="color: var(--muted);">Average Discount</div>
+                                        <div class="font-bold" :class="discountTone(scan.avg_discount)">{{ formatPercent(scan.avg_discount) }}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--muted);">Sources</div>
+                                        <div class="font-bold">{{ Object.keys(scan.source_breakdown || {}).length }}</div>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                <a :href="selectedProduct.url" target="_blank"
-                                   class="w-full gold-gradient text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center hover:opacity-90 transition">
-                                    <i class="fas fa-external-link-alt mr-2"></i>
-                                    View on {{ selectedProduct.source }}
-                                </a>
-                            </div>
+                                <div class="flex gap-3 flex-wrap">
+                                    <button class="btn-primary flex-1" @click="loadScanDetails(scan.scan_id)">
+                                        <i class="fas fa-eye"></i> Open Scan
+                                    </button>
+                                    <button class="btn-secondary" @click="copyToClipboard(scan.scan_id, 'Scan ID copied.')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </article>
+                        </div>
+                        <div v-else class="empty-state">
+                            <div class="display-font text-3xl font-bold mb-2">No Archive Yet</div>
+                            <p style="color: var(--muted);">Run a scan to seed the dashboard archive.</p>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
+                </section>
 
-        <!-- Loading Overlay -->
-        <div v-if="loading" class="fixed inset-0 bg-white dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 z-50 flex items-center justify-center">
-            <div class="text-center">
-                <div class="gold-gradient w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                    <i class="fas fa-coins text-white text-2xl md:text-4xl"></i>
-                </div>
-                <p class="text-sm md:text-base text-gray-700 dark:text-gray-300 font-medium">Loading data...</p>
-            </div>
-        </div>
+                <section v-show="activeTab === 'insights'">
+                    <div class="insight-grid">
+                        <article class="metric-card">
+                            <div class="metric-label">Historical Scans</div>
+                            <div class="metric-value">{{ historicalStats.total_scans || 0 }}</div>
+                            <div class="metric-subtext">Across the local archive</div>
+                        </article>
+                        <article class="metric-card">
+                            <div class="metric-label">Products Ever Seen</div>
+                            <div class="metric-value">{{ historicalStats.total_products_ever || 0 }}</div>
+                            <div class="metric-subtext">Bounded by available scan history</div>
+                        </article>
+                        <article class="metric-card">
+                            <div class="metric-label">Best Historical Deal</div>
+                            <div class="metric-value" :class="discountTone(historicalStats.best_deal_ever ? historicalStats.best_deal_ever.discount : 0)">
+                                {{ historicalStats.best_deal_ever ? formatPercent(historicalStats.best_deal_ever.discount) : 'N/A' }}
+                            </div>
+                            <div class="metric-subtext">{{ historicalStats.best_deal_ever ? historicalStats.best_deal_ever.title : 'No recorded deal' }}</div>
+                        </article>
+                    </div>
 
-        <!-- Notifications Toast -->
-        <div class="fixed top-4 right-4 left-4 sm:left-auto z-50 space-y-2 pointer-events-none">
-            <div v-for="n in notifications" :key="n.id" 
-                 :class="[
-                     'px-4 md:px-6 py-2 md:py-3 rounded-lg shadow-lg animate__animated animate__fadeInRight flex items-center text-sm md:text-base',
-                     n.type === 'success' ? 'bg-green-500 text-white' : 
-                     n.type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
-                 ]">
-                <i :class="[
-                    'fas mr-2',
-                    n.type === 'success' ? 'fa-check-circle' : 
-                    n.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'
-                ]"></i>
-                <span class="truncate">{{ n.message }}</span>
-            </div>
-        </div>
+                    <div class="chart-grid mb-4">
+                        <div class="chart-shell">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <div class="kicker">Current Scan</div>
+                                    <h3 class="display-font text-3xl font-bold">Source Distribution</h3>
+                                </div>
+                                <span class="pill neutral">{{ Object.keys(currentSourceDistribution).length }} sources</span>
+                            </div>
+                            <div class="chart-canvas"><canvas id="distributionChart"></canvas></div>
+                        </div>
+                        <div class="chart-shell">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <div class="kicker">Archive Trend</div>
+                                    <h3 class="display-font text-3xl font-bold">Scan Flow</h3>
+                                </div>
+                                <span class="pill neutral">{{ scans.length }} recent scans</span>
+                            </div>
+                            <div class="chart-canvas"><canvas id="scanTrendChart"></canvas></div>
+                        </div>
+                    </div>
 
-        <!-- Keyboard Shortcuts Hint (Desktop only) -->
-        <div class="hidden lg:block fixed bottom-4 right-4 z-50">
-            <button @click="showShortcuts = !showShortcuts" 
-                    class="bg-gray-800 text-white p-3 rounded-full shadow-lg hover:bg-gray-700 transition-colors">
+                    <div class="surface-strong p-5">
+                        <div class="flex items-center justify-between gap-4 flex-wrap mb-4">
+                            <div>
+                                <div class="kicker">Last 30 Days</div>
+                                <h3 class="display-font text-3xl font-bold">Timeline Summary</h3>
+                            </div>
+                            <span class="pill neutral">{{ timeline.total_scans || 0 }} scans · {{ timeline.total_products || 0 }} products</span>
+                        </div>
+                        <div class="scan-grid" v-if="Object.keys(timeline.timeline || {}).length">
+                            <div class="scan-card" v-for="(entry, dateKey) in timeline.timeline" :key="dateKey">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="font-bold text-lg">{{ formatDate(dateKey) }}</div>
+                                    <span class="pill neutral">{{ entry.scans }} scan{{ entry.scans === 1 ? '' : 's' }}</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <div style="color: var(--muted);">Products</div>
+                                        <div class="font-bold">{{ entry.products }}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--muted);">Hourly buckets</div>
+                                        <div class="font-bold">{{ Object.keys(entry.by_hour || {}).length }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="empty-state">
+                            <div class="display-font text-3xl font-bold mb-2">Timeline Not Available</div>
+                            <p style="color: var(--muted);">No scans are available inside the selected 30 day window.</p>
+                        </div>
+                    </div>
+                </section>
+            </section>
+        </main>
+
+        <div class="shortcut-fab hidden md:block">
+            <button class="btn-secondary" @click="showShortcuts = !showShortcuts">
                 <i class="fas fa-keyboard"></i>
             </button>
-            <div v-if="showShortcuts" 
-                 class="absolute bottom-16 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 w-64 border dark:border-gray-700">
-                <h4 class="font-bold mb-2 text-gray-900 dark:text-white flex items-center">
-                    <i class="fas fa-keyboard mr-2"></i> Shortcuts
-                </h4>
-                <div class="space-y-2">
-                    <div v-for="shortcut in shortcutHints" :key="shortcut.key" 
-                         class="flex justify-between text-sm">
-                        <span class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded font-mono text-xs">{{ shortcut.key }}</span>
-                        <span class="text-gray-600 dark:text-gray-400">{{ shortcut.action }}</span>
+            <div v-if="showShortcuts" class="surface-strong mt-3 p-4 w-72">
+                <div class="kicker mb-2">Shortcuts</div>
+                <div class="grid gap-3">
+                    <div class="flex items-center justify-between" v-for="shortcut in shortcuts" :key="shortcut.key">
+                        <span class="font-bold">{{ shortcut.key }}</span>
+                        <span style="color: var(--muted);" class="text-sm">{{ shortcut.action }}</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div v-if="showScanModal" class="modal-wrap">
+            <div class="backdrop" @click="showScanModal = false"></div>
+            <div class="modal-card relative">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <div class="kicker">Manual Scan</div>
+                        <h3 class="display-font text-3xl font-bold">Run A Fresh Capture</h3>
+                    </div>
+                    <button class="icon-btn" @click="showScanModal = false"><i class="fas fa-times"></i></button>
+                </div>
+                <p class="mb-6" style="color: var(--muted);">This will trigger a new live scrape and write a new scan file into the local archive. Cooldown is configurable in environment settings and defaults to off locally.</p>
+                <div class="flex gap-3 justify-end flex-wrap">
+                    <button class="btn-secondary" @click="showScanModal = false">Cancel</button>
+                    <button class="btn-primary" @click="startNewScan" :disabled="scanning">
+                        <i class="fas" :class="scanning ? 'fa-spinner fa-spin' : 'fa-search'"></i>
+                        {{ scanning ? 'Running scan' : 'Start scan' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showExportModal" class="modal-wrap">
+            <div class="backdrop" @click="showExportModal = false"></div>
+            <div class="modal-card relative">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <div class="kicker">Export</div>
+                        <h3 class="display-font text-3xl font-bold">Export Current Scan View</h3>
+                    </div>
+                    <button class="icon-btn" @click="showExportModal = false"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="grid gap-3 mb-6">
+                    <label class="mini-card flex items-center justify-between cursor-pointer">
+                        <span>
+                            <span class="font-bold block">CSV</span>
+                            <span class="text-sm" style="color: var(--muted);">Flat export for spreadsheet review.</span>
+                        </span>
+                        <input type="radio" value="csv" v-model="exportFormat">
+                    </label>
+                    <label class="mini-card flex items-center justify-between cursor-pointer">
+                        <span>
+                            <span class="font-bold block">JSON</span>
+                            <span class="text-sm" style="color: var(--muted);">Structured export for reuse or scripting.</span>
+                        </span>
+                        <input type="radio" value="json" v-model="exportFormat">
+                    </label>
+                </div>
+                <div class="flex gap-3 justify-end flex-wrap">
+                    <button class="btn-secondary" @click="showExportModal = false">Cancel</button>
+                    <button class="btn-primary" @click="exportData"><i class="fas fa-file-export"></i> Export {{ sortedProducts.length }} rows</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showFavoritesModal" class="modal-wrap">
+            <div class="backdrop" @click="showFavoritesModal = false"></div>
+            <div class="modal-card large relative">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <div class="kicker">Shortlist</div>
+                        <h3 class="display-font text-3xl font-bold">Saved Products In This Scan</h3>
+                    </div>
+                    <button class="icon-btn" @click="showFavoritesModal = false"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="grid gap-3 max-h-96 overflow-y-auto" v-if="favoriteProducts.length">
+                    <article class="scan-card" v-for="product in favoriteProducts" :key="product.url">
+                        <div class="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                                <div class="font-bold text-lg">{{ product.title }}</div>
+                                <div class="text-sm mt-2" style="color: var(--muted);">{{ product.source }} · {{ product.brand || 'Unknown' }} · {{ formatWeight(product.weight_grams) }} · {{ formatPercent(product.discount_percent) }}</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <a class="btn-primary" :href="product.url" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                                <button class="btn-secondary" @click="toggleFavorite(product)"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+                <div class="empty-state" v-else>
+                    <div class="display-font text-3xl font-bold mb-2">No Shortlisted Products</div>
+                    <p style="color: var(--muted);">Star a product card to keep it in the current scan shortlist.</p>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="selectedProduct" class="modal-wrap">
+            <div class="backdrop" @click="selectedProduct = null"></div>
+            <div class="modal-card large relative">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <div class="kicker">Product Detail</div>
+                        <h3 class="display-font text-3xl font-bold">{{ selectedProduct.title }}</h3>
+                    </div>
+                    <button class="icon-btn" @click="selectedProduct = null"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-5">
+                    <div class="product-media rounded-2xl overflow-hidden">
+                        <img :src="selectedProduct.image_url || 'https://placehold.co/640x640/f1e7cf/4f3a14?text=Gold+Deal'" :alt="selectedProduct.title" @error="handleImageError">
+                    </div>
+                    <div class="grid gap-4">
+                        <div class="mini-card">
+                            <div class="kicker mb-2">Snapshot</div>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div><div style="color: var(--muted);">Source</div><div class="font-bold">{{ selectedProduct.source }}</div></div>
+                                <div><div style="color: var(--muted);">Brand</div><div class="font-bold">{{ selectedProduct.brand || 'Unknown' }}</div></div>
+                                <div><div style="color: var(--muted);">Purity</div><div class="font-bold">{{ selectedProduct.purity }}</div></div>
+                                <div><div style="color: var(--muted);">Weight</div><div class="font-bold">{{ formatWeight(selectedProduct.weight_grams) }}</div></div>
+                                <div><div style="color: var(--muted);">Type</div><div class="font-bold">{{ selectedProduct.product_type || 'product' }}</div></div>
+                                <div><div style="color: var(--muted);">Captured</div><div class="font-bold">{{ formatDateTime(selectedProduct.timestamp) }}</div></div>
+                            </div>
+                        </div>
+                        <div class="mini-card">
+                            <div class="kicker mb-2">Pricing</div>
+                            <div class="grid gap-3 text-sm">
+                                <div class="flex items-center justify-between"><span style="color: var(--muted);">Selling price</span><strong>{{ formatCurrency(selectedProduct.selling_price) }}</strong></div>
+                                <div class="flex items-center justify-between"><span style="color: var(--muted);">Expected price</span><strong>{{ formatCurrency(selectedProduct.expected_price) }}</strong></div>
+                                <div class="flex items-center justify-between"><span style="color: var(--muted);">Price / gram</span><strong>{{ formatCurrency(selectedProduct.price_per_gram) }}</strong></div>
+                                <div class="flex items-center justify-between"><span style="color: var(--muted);">Discount</span><strong :class="discountTone(selectedProduct.discount_percent)">{{ formatPercent(selectedProduct.discount_percent) }}</strong></div>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="btn-secondary" @click="toggleFavorite(selectedProduct)"><i class="fas fa-star"></i> {{ isFavorite(selectedProduct) ? 'Remove' : 'Save' }}</button>
+                            <button class="btn-secondary" @click="shareProduct(selectedProduct)"><i class="fas fa-share-nodes"></i> Share</button>
+                            <a class="btn-primary" :href="selectedProduct.url" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-up-right-from-square"></i> Open listing</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast-stack">
+            <div v-for="notification in notifications" :key="notification.id" :class="notificationClass(notification.type)">
+                {{ notification.message }}
+            </div>
+        </div>
+
+        <div v-if="loading || scanning" class="overlay-loader">
+            <div class="loader-card">
+                <div class="pulse-orb"><i class="fas" :class="scanning ? 'fa-search' : 'fa-coins'"></i></div>
+                <div class="display-font text-3xl font-bold mb-2">{{ scanning ? 'Running Scan' : 'Loading Dashboard' }}</div>
+                <p style="color: var(--muted);">{{ scanning ? 'Collecting a fresh market capture and writing it to the archive.' : 'Hydrating the latest scan, archive, and insight panels.' }}</p>
             </div>
         </div>
     </div>

@@ -1,9 +1,12 @@
 # run.py
-import uvicorn
+import threading
+import time
 import webbrowser
 from pathlib import Path
-import sys
-import os
+
+import uvicorn
+
+from config import APP_HOST, APP_PORT, APP_RELOAD, AUTO_OPEN_BROWSER
 
 def setup_directories():
     """Create necessary directories"""
@@ -24,41 +27,37 @@ def setup_directories():
 
 def open_browser():
     """Open browser after server starts"""
-    import time
     time.sleep(2)
-    webbrowser.open("http://localhost:8000")
+    webbrowser.open(f"http://localhost:{APP_PORT}")
 
 if __name__ == "__main__":
     setup_directories()
     
-    print("""
+    print(f"""
     ╔══════════════════════════════════════════════════════════════════╗
     ║                                                                  ║
-    ║     🏆  GOLD DEAL FINDER - HISTORICAL DATA DASHBOARD  🏆        ║
+    ║        GOLD DEAL FINDER - LOCAL DASHBOARD RUNTIME               ║
     ║                                                                  ║
-    ║   📊 View all products ever scanned                             ║
-    ║   📈 Historical analytics and trends                            ║
-    ║   🔍 Advanced filtering and search                              ║
-    ║   💾 Automatic caching for fast performance                     ║
+    ║   Latest scan view with historical drill-down                   ║
+    ║   Manual scans enabled locally                                  ║
+    ║   Data directory: ./data/                                       ║
     ║                                                                  ║
-    ║   🚀 Server: http://localhost:8000                             ║
-    ║   📚 API Docs: http://localhost:8000/docs                     ║
-    ║   💾 Data directory: ./data/                                   ║
+    ║   Server: http://localhost:{APP_PORT:<4}                                   ║
+    ║   API Docs: http://localhost:{APP_PORT:<4}/docs                             ║
+    ║   Auto-open browser: {'ON ' if AUTO_OPEN_BROWSER else 'OFF'}                               ║
     ║                                                                  ║
     ║   Press Ctrl+C to stop the server                              ║
     ║                                                                  ║
     ╚══════════════════════════════════════════════════════════════════╝
     """)
     
-    # Open browser
-    import threading
-    threading.Thread(target=open_browser, daemon=True).start()
+    if AUTO_OPEN_BROWSER:
+        threading.Thread(target=open_browser, daemon=True).start()
     
-    # Run server
     uvicorn.run(
         "api:app",
-        host="0.0.0.0",
-        port=8001,
-        reload=True,
+        host=APP_HOST,
+        port=APP_PORT,
+        reload=APP_RELOAD,
         log_level="info"
     )

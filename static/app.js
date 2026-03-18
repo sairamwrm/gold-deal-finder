@@ -1,1021 +1,810 @@
-// ============================================
-// GOLD DEAL FINDER - PREMIUM EDITION
-// ============================================
-// Features:
-// ✅ Latest scan data only
-// ✅ Working pagination
-// ✅ Price history charts
-// ✅ Deal alerts & notifications
-// ✅ Dark mode toggle
-// ✅ Export to CSV
-// ✅ Favorites/Watchlist
-// ✅ Keyboard shortcuts
-// ✅ Responsive mobile design
-// ✅ Real-time price updates
-// ============================================
+/* Gold Deal Finder refresh */
+(function () {
+    const DEFAULT_FILTERS = Object.freeze({
+        source: '',
+        purity: '',
+        search: '',
+        min_discount: -100,
+        max_discount: 100,
+        min_weight: 0,
+        max_weight: 100,
+        onlyFavorites: false,
+    });
 
-console.log('🚀 Gold Deal Finder Premium loading...');
+    function cloneFilters() {
+        return JSON.parse(JSON.stringify(DEFAULT_FILTERS));
+    }
 
+    function safeArray(value) {
+        return Array.isArray(value) ? value : [];
+    }
 
-try {
+    function numeric(value, fallback = 0) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
     window.app = new Vue({
         el: '#app',
-        
+
         data: {
-            // ========== UI STATE ==========
             activeTab: 'products',
             loading: true,
             loadingProducts: false,
+            refreshing: false,
             scanning: false,
+            bootError: '',
+
+            darkMode: localStorage.getItem('goldDarkMode') === 'true',
+            windowWidth: window.innerWidth,
+            mobileMenuOpen: false,
+            showMobileFilters: false,
+            showShortcuts: false,
+
             showScanModal: false,
             showExportModal: false,
             showFavoritesModal: false,
-            showSettingsModal: false,
-            showPriceHistoryModal: false,
             selectedProduct: null,
-            darkMode: localStorage.getItem('darkMode') === 'true',
-            sidebarCollapsed: false,
-            
-            // ========== DATA ==========
-            // Latest scan only - NO HISTORICAL MIX
-            currentScanId: null,
-            currentScanTimestamp: null,
-            allProducts: [], // All products from latest scan
-            scans: [], // Limited to 5 for history view
-            latestProducts: [],
-            filteredProducts: {
-                total: 0,
-                products: []
+
+            selectedScanId: null,
+            selectedScanTimestamp: null,
+            selectedScanIsLatest: true,
+            latestScanId: null,
+            latestScanTimestamp: null,
+
+            allProducts: [],
+            scans: [],
+            summaryStats: {
+                live: {},
+                historical: {},
             },
             spotPrice: null,
-            spotPriceHistory: [],
-            stats: {
-                live: {},
-                historical: {
-                    total_scans: 0,
-                    total_products_ever: 0,
-                    total_good_deals: 0,
-                    avg_discount_all: 0,
-                    source_distribution: {},
-                    purity_distribution: {},
-                    best_deal_ever: null
-                }
+            timeline: {
+                timeline: {},
+                total_scans: 0,
+                total_products: 0,
             },
-            timeline: null,
-            
-            // ========== FAVORITES ==========
-            favorites: JSON.parse(localStorage.getItem('goldFavorites') || '[]'),
-            
-            // ========== FILTERS ==========
-            filters: {
-                source: '',
-                purity: '',
-                min_discount: -100,
-                max_discount: 100,
-                min_weight: 0,
-                max_weight: 100,
-                search: '',
-                inStock: false,
-                onlyFavorites: false
-            },
-            
-            // ========== PAGINATION (FIXED) ==========
+
+            filters: cloneFilters(),
             currentPage: 1,
             itemsPerPage: 12,
-            pageSizeOptions: [12, 24, 48, 96],
+            pageSizeOptions: [12, 24, 48],
             sortBy: 'discount_percent',
             sortOrder: 'desc',
-            
-            // ========== CHARTS ==========
-            scansChart: null,
-            distributionChart: null,
-            timelineChart: null,
-            priceHistoryChart: null,
-            
-            // ========== EXPORT ==========
+
+            favorites: JSON.parse(localStorage.getItem('goldFavorites') || '[]'),
             exportFormat: 'csv',
-            exporting: false,
-            
-            // ========== NOTIFICATIONS ==========
+
             notifications: [],
             notificationId: 0,
-            
-            // ========== KEYBOARD SHORTCUTS ==========
-            keysPressed: {},
-            
-            // ========== PRICE ALERTS ==========
-            priceAlerts: JSON.parse(localStorage.getItem('priceAlerts') || '[]'),
-            showPriceAlertModal: false,
-            alertProduct: null,
-            alertPrice: null,
-            
-            // ========== STATS ==========
-            averagePricePerGram: 0,
-            totalValue: 0,
-            bestDeal: null,
-            
-            // ========== DEBUG ==========
-            debug: false
+
+            distributionChart: null,
+            scanTrendChart: null,
+
+            shortcuts: [
+                { key: 'Ctrl/Cmd + F', action: 'Focus search' },
+                { key: 'Ctrl/Cmd + R', action: 'Refresh dashboard' },
+                { key: 'Ctrl/Cmd + N', action: 'Open scan dialog' },
+                { key: 'Ctrl/Cmd + D', action: 'Toggle theme' },
+                { key: 'Esc', action: 'Close overlays' },
+            ],
         },
-        
-        // ========== COMPUTED ==========
+
         computed: {
-            // ✅ FIXED: Pagination using latest scan only
+            filteredProducts() {
+                let products = [...this.allProducts];
+
+                if (this.filters.source) {
+                    products = products.filter((product) => product.source === this.filters.source);
+                }
+                if (this.filters.purity) {
+                    products = products.filter((product) => product.purity === this.filters.purity);
+                }
+                if (this.filters.search) {
+                    const term = this.filters.search.toLowerCase();
+                    products = products.filter((product) => {
+                        return [product.title, product.brand, product.source, product.purity]
+                            .filter(Boolean)
+                            .some((value) => String(value).toLowerCase().includes(term));
+                    });
+                }
+
+                products = products.filter((product) => {
+                    const discount = numeric(product.discount_percent);
+                    const weight = numeric(product.weight_grams);
+                    return (
+                        discount >= this.filters.min_discount &&
+                        discount <= this.filters.max_discount &&
+                        weight >= this.filters.min_weight &&
+                        weight <= this.filters.max_weight
+                    );
+                });
+
+                if (this.filters.onlyFavorites) {
+                    products = products.filter((product) => this.favorites.includes(product.url));
+                }
+
+                return products;
+            },
+
+            sortedProducts() {
+                const products = [...this.filteredProducts];
+                const direction = this.sortOrder === 'desc' ? -1 : 1;
+                products.sort((left, right) => {
+                    let a = left[this.sortBy];
+                    let b = right[this.sortBy];
+
+                    if (this.sortBy === 'timestamp') {
+                        a = new Date(a || 0).getTime();
+                        b = new Date(b || 0).getTime();
+                    } else {
+                        a = typeof a === 'string' ? a.toLowerCase() : numeric(a);
+                        b = typeof b === 'string' ? b.toLowerCase() : numeric(b);
+                    }
+
+                    if (a < b) return -1 * direction;
+                    if (a > b) return 1 * direction;
+                    return 0;
+                });
+                return products;
+            },
+
             paginatedProducts() {
-                if (!this.filteredProducts?.products?.length) return [];
                 const start = (this.currentPage - 1) * this.itemsPerPage;
-                const end = start + this.itemsPerPage;
-                return this.filteredProducts.products.slice(start, end);
+                return this.sortedProducts.slice(start, start + this.itemsPerPage);
             },
-            
-            // ✅ FIXED: Total pages based on filtered products count
+
             totalPages() {
-                return Math.ceil((this.filteredProducts.total || 0) / this.itemsPerPage);
+                return Math.max(1, Math.ceil(this.sortedProducts.length / this.itemsPerPage));
             },
-            
-            // Show page range (e.g., "1-12 of 145")
-            pageRange() {
-                if (!this.filteredProducts.products?.length) return '0';
-                const start = ((this.currentPage - 1) * this.itemsPerPage) + 1;
-                const end = Math.min(start + this.itemsPerPage - 1, this.filteredProducts.total);
-                return `${start}-${end}`;
+
+            pageNumbers() {
+                const total = this.totalPages;
+                const current = this.currentPage;
+                const start = Math.max(1, current - 2);
+                const end = Math.min(total, start + 4);
+                const pages = [];
+                for (let page = start; page <= end; page += 1) {
+                    pages.push(page);
+                }
+                return pages;
             },
-            
-            // Unique filter options (from latest scan only)
+
+            activeFilterCount() {
+                let count = 0;
+                if (this.filters.source) count += 1;
+                if (this.filters.purity) count += 1;
+                if (this.filters.search) count += 1;
+                if (this.filters.min_discount !== DEFAULT_FILTERS.min_discount) count += 1;
+                if (this.filters.max_discount !== DEFAULT_FILTERS.max_discount) count += 1;
+                if (this.filters.min_weight !== DEFAULT_FILTERS.min_weight) count += 1;
+                if (this.filters.max_weight !== DEFAULT_FILTERS.max_weight) count += 1;
+                if (this.filters.onlyFavorites) count += 1;
+                return count;
+            },
+
             uniqueSources() {
-                if (!this.allProducts?.length) return [];
-                return [...new Set(this.allProducts.map(p => p.source).filter(Boolean))];
+                return [...new Set(this.allProducts.map((product) => product.source).filter(Boolean))].sort();
             },
-            
+
             uniquePurities() {
-                if (!this.allProducts?.length) return [];
-                return [...new Set(this.allProducts.map(p => p.purity).filter(Boolean))];
+                return [...new Set(this.allProducts.map((product) => product.purity).filter(Boolean))].sort();
             },
-            
-            uniqueBrands() {
-                if (!this.allProducts?.length) return [];
-                return [...new Set(this.allProducts.map(p => p.brand).filter(Boolean))].slice(0, 10);
+
+            isDesktop() {
+                return this.windowWidth >= 1024;
             },
-            
-            // Stats from latest scan
-            totalProductsCount() {
-                return this.allProducts.length || 0;
+
+            scanLabel() {
+                if (!this.selectedScanId) return 'No scan loaded';
+                return this.selectedScanIsLatest ? 'Latest market capture' : 'Archived scan selected';
             },
-            
-            goodDealsCount() {
-                return this.allProducts.filter(p => (p.discount_percent || 0) >= 10).length;
+
+            scanTimeFormatted() {
+                if (!this.selectedScanTimestamp) return 'No timestamp';
+                return this.formatDateTime(this.selectedScanTimestamp);
             },
-            
+
+            liveSpotPrice() {
+                return numeric(this.spotPrice?.gold?.per_gram?.['999_landed']);
+            },
+
+            totalInventoryValue() {
+                return this.allProducts.reduce((sum, product) => sum + numeric(product.selling_price), 0);
+            },
+
             averageDiscount() {
                 if (!this.allProducts.length) return 0;
-                const sum = this.allProducts.reduce((acc, p) => acc + (p.discount_percent || 0), 0);
-                return (sum / this.allProducts.length).toFixed(1);
+                const total = this.allProducts.reduce((sum, product) => sum + numeric(product.discount_percent), 0);
+                return total / this.allProducts.length;
             },
-            
-            maxDiscount() {
+
+            averagePricePerGram() {
                 if (!this.allProducts.length) return 0;
-                return Math.max(...this.allProducts.map(p => p.discount_percent || 0));
+                const total = this.allProducts.reduce((sum, product) => sum + numeric(product.price_per_gram), 0);
+                return total / this.allProducts.length;
             },
-            
-            // Total value of all products
-            totalInventoryValue() {
-                return this.allProducts.reduce((acc, p) => acc + (p.selling_price || 0), 0);
+
+            goodDealsCount() {
+                return this.allProducts.filter((product) => numeric(product.discount_percent) >= 10).length;
             },
-            
-            // Favorites
+
+            bestCurrentDeal() {
+                if (!this.allProducts.length) return null;
+                return [...this.allProducts].sort((a, b) => numeric(b.discount_percent) - numeric(a.discount_percent))[0];
+            },
+
             favoriteProducts() {
-                return this.allProducts.filter(p => this.favorites.includes(p.url));
+                return this.allProducts.filter((product) => this.favorites.includes(product.url));
             },
-            
-            // Filtered favorites count
-            filteredFavoritesCount() {
-                return this.filteredProducts.products?.filter(p => this.favorites.includes(p.url)).length || 0;
+
+            currentSourceDistribution() {
+                const distribution = {};
+                this.allProducts.forEach((product) => {
+                    const source = product.source || 'Unknown';
+                    distribution[source] = (distribution[source] || 0) + 1;
+                });
+                return distribution;
             },
-            
-            // Dark mode class
-            darkModeClass() {
-                return this.darkMode ? 'dark' : '';
+
+            scanTrendSeries() {
+                return [...this.scans].slice(0, 10).reverse();
             },
-            
-            // Scan timestamp formatted
-            scanTimeFormatted() {
-                if (!this.currentScanTimestamp) return 'Never';
-                return new Date(this.currentScanTimestamp).toLocaleString('en-IN', {
+
+            historicalStats() {
+                return this.summaryStats.historical || {};
+            },
+
+            latestProductsPreview() {
+                return [...this.sortedProducts].slice(0, 4);
+            },
+        },
+
+        watch: {
+            filters: {
+                handler() {
+                    this.currentPage = 1;
+                },
+                deep: true,
+            },
+            sortBy() {
+                this.currentPage = 1;
+            },
+            sortOrder() {
+                this.currentPage = 1;
+            },
+            itemsPerPage() {
+                this.currentPage = 1;
+            },
+            favorites: {
+                handler(value) {
+                    localStorage.setItem('goldFavorites', JSON.stringify(value));
+                },
+                deep: true,
+            },
+            darkMode(value) {
+                localStorage.setItem('goldDarkMode', String(value));
+                this.applyTheme();
+                this.$nextTick(() => this.renderCharts());
+            },
+            activeTab() {
+                this.$nextTick(() => this.renderCharts());
+            },
+            allProducts() {
+                this.currentPage = 1;
+                this.$nextTick(() => this.renderCharts());
+            },
+            scans() {
+                this.$nextTick(() => this.renderCharts());
+            },
+            timeline() {
+                this.$nextTick(() => this.renderCharts());
+            },
+        },
+
+        mounted() {
+            this.applyTheme();
+            window.addEventListener('resize', this.handleResize);
+            this.initKeyboardShortcuts();
+            this.boot();
+            this.setupAutoRefresh();
+        },
+
+        beforeDestroy() {
+            window.removeEventListener('keydown', this.handleKeyDown);
+            window.removeEventListener('resize', this.handleResize);
+            this.destroyCharts();
+        },
+
+        methods: {
+            async boot() {
+                this.loading = true;
+                this.bootError = '';
+                try {
+                    await this.refreshDashboardData({ preserveSelection: false });
+                } catch (error) {
+                    this.bootError = this.getErrorMessage(error, 'Unable to load the dashboard.');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async refreshDashboardData({ preserveSelection = true, clearCache = false } = {}) {
+                const selectedScanId = preserveSelection ? this.selectedScanId : null;
+                const selectedScanIsLatest = preserveSelection ? this.selectedScanIsLatest : true;
+
+                if (clearCache) {
+                    await axios.post('/api/v1/cache/clear');
+                }
+
+                await Promise.all([
+                    this.fetchScans(),
+                    this.fetchSummaryStats(),
+                    this.fetchSpotPrice(),
+                    this.fetchTimeline(),
+                ]);
+
+                if (selectedScanId && !selectedScanIsLatest && this.scans.some((scan) => scan.scan_id === selectedScanId)) {
+                    await this.loadScanDetails(selectedScanId, { keepTab: true, silent: true });
+                } else {
+                    await this.loadLatestScan({ silent: true });
+                }
+            },
+
+            async fetchScans() {
+                const response = await axios.get('/api/v1/historical/scans?limit=14');
+                this.scans = safeArray(response.data);
+                if (this.scans.length) {
+                    this.latestScanId = this.scans[0].scan_id;
+                    this.latestScanTimestamp = this.scans[0].timestamp;
+                } else {
+                    this.latestScanId = null;
+                    this.latestScanTimestamp = null;
+                }
+            },
+
+            async fetchSummaryStats() {
+                const response = await axios.get('/api/v1/stats/summary');
+                this.summaryStats = response.data || { live: {}, historical: {} };
+            },
+
+            async fetchSpotPrice() {
+                const response = await axios.get('/api/v1/spot-price');
+                this.spotPrice = response.data || null;
+            },
+
+            async fetchTimeline() {
+                const response = await axios.get('/api/v1/historical/timeline?days=30');
+                this.timeline = response.data || { timeline: {}, total_scans: 0, total_products: 0 };
+            },
+
+            async loadLatestScan({ silent = false } = {}) {
+                if (!this.scans.length) {
+                    this.allProducts = [];
+                    this.selectedScanId = null;
+                    this.selectedScanTimestamp = null;
+                    this.selectedScanIsLatest = true;
+                    this.latestScanId = null;
+                    this.latestScanTimestamp = null;
+                    return;
+                }
+                await this.loadScanDetails(this.scans[0].scan_id, { isLatest: true, silent });
+            },
+
+            async loadScanDetails(scanId, { isLatest = false, keepTab = false, silent = false } = {}) {
+                this.loadingProducts = true;
+                if (!silent) {
+                    this.bootError = '';
+                }
+                try {
+                    const response = await axios.get(`/api/v1/historical/scan/${scanId}`);
+                    const scanData = response.data || {};
+                    this.allProducts = safeArray(scanData.products);
+                    this.selectedScanId = scanData.scan_id || scanId;
+                    this.selectedScanTimestamp = scanData.timestamp || null;
+                    this.selectedScanIsLatest = Boolean(isLatest || this.latestScanId === this.selectedScanId);
+                    if (!keepTab) {
+                        this.activeTab = 'products';
+                    }
+                    this.mobileMenuOpen = false;
+                    this.showMobileFilters = false;
+                    if (!silent) {
+                        this.showNotification('info', this.selectedScanIsLatest ? 'Loaded latest scan.' : 'Loaded archived scan.');
+                    }
+                } catch (error) {
+                    const message = this.getErrorMessage(error, 'Unable to load scan details.');
+                    this.bootError = message;
+                    this.showNotification('error', message);
+                } finally {
+                    this.loadingProducts = false;
+                }
+            },
+
+            async returnToLatest() {
+                await this.loadLatestScan();
+            },
+
+            async refreshData() {
+                this.refreshing = true;
+                this.bootError = '';
+                try {
+                    await this.refreshDashboardData({ preserveSelection: true, clearCache: true });
+                    this.showNotification('success', 'Dashboard refreshed.');
+                } catch (error) {
+                    this.showNotification('error', this.getErrorMessage(error, 'Refresh failed.'));
+                } finally {
+                    this.refreshing = false;
+                }
+            },
+
+            async startNewScan() {
+                this.scanning = true;
+                try {
+                    const response = await axios.post('/api/v1/scan');
+                    this.showScanModal = false;
+                    this.showNotification('success', response.data?.message || 'Scan completed.');
+                    await this.refreshDashboardData({ preserveSelection: false, clearCache: true });
+                    await this.loadLatestScan({ silent: true });
+                } catch (error) {
+                    this.showNotification('error', this.getErrorMessage(error, 'Scan failed.'));
+                } finally {
+                    this.scanning = false;
+                }
+            },
+
+            async checkForNewScan() {
+                try {
+                    const response = await axios.get('/api/v1/historical/scans?limit=1');
+                    const latest = safeArray(response.data)[0];
+                    if (latest && latest.scan_id !== this.latestScanId) {
+                        this.showNotification('info', 'New scan detected. Refreshing archive.');
+                        await this.refreshDashboardData({ preserveSelection: true, clearCache: false });
+                    }
+                } catch (error) {
+                    console.error('Scan polling failed', error);
+                }
+            },
+
+            handleResize() {
+                this.windowWidth = window.innerWidth;
+                if (this.isDesktop) {
+                    this.showMobileFilters = false;
+                    this.mobileMenuOpen = false;
+                }
+            },
+
+            exportData() {
+                const rows = this.sortedProducts;
+                const fileBase = this.selectedScanId ? `gold-deals-${this.selectedScanId}` : 'gold-deals';
+                if (this.exportFormat === 'json') {
+                    this.downloadBlob(JSON.stringify(rows, null, 2), `${fileBase}.json`, 'application/json');
+                } else {
+                    const headers = ['Source', 'Brand', 'Title', 'Purity', 'Weight (g)', 'Price', 'Expected', 'Discount %', 'Price/g', 'URL'];
+                    const csvRows = rows.map((product) => [
+                        product.source,
+                        product.brand,
+                        String(product.title || '').replace(/,/g, ';'),
+                        product.purity,
+                        numeric(product.weight_grams),
+                        numeric(product.selling_price),
+                        numeric(product.expected_price),
+                        numeric(product.discount_percent),
+                        numeric(product.price_per_gram),
+                        product.url,
+                    ]);
+                    const csv = [headers, ...csvRows].map((row) => row.join(',')).join('\n');
+                    this.downloadBlob(csv, `${fileBase}.csv`, 'text/csv;charset=utf-8');
+                }
+                this.showExportModal = false;
+                this.showNotification('success', 'Export ready.');
+            },
+
+            downloadBlob(content, filename, mimeType) {
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.click();
+                URL.revokeObjectURL(url);
+            },
+
+            resetFilters() {
+                this.filters = cloneFilters();
+                this.showNotification('info', 'Filters reset.');
+            },
+
+            toggleFavorite(product) {
+                const index = this.favorites.indexOf(product.url);
+                if (index === -1) {
+                    this.favorites.push(product.url);
+                    this.showNotification('success', 'Saved to shortlist.');
+                } else {
+                    this.favorites.splice(index, 1);
+                    this.showNotification('info', 'Removed from shortlist.');
+                }
+            },
+
+            isFavorite(product) {
+                return this.favorites.includes(product.url);
+            },
+
+            viewProductDetails(product) {
+                this.selectedProduct = product;
+            },
+
+            closeAllPanels() {
+                this.mobileMenuOpen = false;
+                this.showMobileFilters = false;
+                this.showShortcuts = false;
+                this.showScanModal = false;
+                this.showExportModal = false;
+                this.showFavoritesModal = false;
+                this.selectedProduct = null;
+            },
+
+            shareProduct(product) {
+                const shareData = {
+                    title: product.title,
+                    text: `${product.brand || product.source} · ${this.formatPercent(product.discount_percent)} · ${this.formatCurrency(product.selling_price)}`,
+                    url: product.url,
+                };
+                if (navigator.share) {
+                    navigator.share(shareData).catch(() => {});
+                    return;
+                }
+                navigator.clipboard.writeText(product.url);
+                this.showNotification('success', 'Product link copied.');
+            },
+
+            copyToClipboard(text, successMessage = 'Copied.') {
+                if (!text) return;
+                navigator.clipboard.writeText(text);
+                this.showNotification('success', successMessage);
+            },
+
+            handleImageError(event) {
+                event.target.src = 'https://placehold.co/640x640/f1e7cf/4f3a14?text=Gold+Deal';
+            },
+
+            focusSearch() {
+                const element = document.getElementById('search-input');
+                if (element) {
+                    element.focus();
+                    element.select();
+                }
+            },
+
+            goToPage(page) {
+                if (page < 1 || page > this.totalPages) return;
+                this.currentPage = page;
+            },
+
+            nextPage() {
+                this.goToPage(this.currentPage + 1);
+            },
+
+            prevPage() {
+                this.goToPage(this.currentPage - 1);
+            },
+
+            formatCurrency(value) {
+                return `₹${numeric(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+            },
+
+            formatWeight(value) {
+                const amount = numeric(value);
+                if (amount >= 1000) {
+                    return `${(amount / 1000).toFixed(2)} kg`;
+                }
+                return `${amount} g`;
+            },
+
+            formatPercent(value) {
+                const amount = numeric(value);
+                return `${amount.toFixed(1)}%`;
+            },
+
+            formatDateTime(value) {
+                if (!value) return 'Unknown time';
+                return new Date(value).toLocaleString('en-IN', {
                     day: '2-digit',
                     month: 'short',
                     year: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
-                    second: '2-digit'
                 });
             },
-            
-            // Keyboard shortcut hints
-            shortcutHints() {
-                return [
-                    { key: '⌘F', action: 'Focus search' },
-                    { key: '⌘R', action: 'Refresh data' },
-                    { key: '⌘N', action: 'New scan' },
-                    { key: '⌘D', action: 'Toggle dark mode' },
-                    { key: '⌘E', action: 'Export data' },
-                    { key: '⌘,', action: 'Settings' },
-                    { key: 'ESC', action: 'Close modal' }
-                ];
-            }
-        },
-        
-        // ========== WATCHERS ==========
-        watch: {
-            filters: {
-                handler() {
-                    this.currentPage = 1;
-                    this.applyFilters();
-                },
-                deep: true
-            },
-            sortBy: 'applySorting',
-            sortOrder: 'applySorting',
-            itemsPerPage() {
-                this.currentPage = 1;
-                this.applyFilters();
-            },
-            darkMode(val) {
-                localStorage.setItem('darkMode', val);
-                if (val) {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
-            },
-            favorites: {
-                handler(val) {
-                    localStorage.setItem('goldFavorites', JSON.stringify(val));
-                },
-                deep: true
-            }
-        },
-        
-        // ========== MOUNTED ==========
-        mounted() {
-            console.log('✅ Vue mounted - Loading latest scan only');
-            this.initKeyboardShortcuts();
-            this.loadLatestScanOnly();
-            this.setupAutoRefresh();
-            this.loadSpotPriceHistory();
-            
-            // Apply dark mode on load
-            if (this.darkMode) {
-                document.documentElement.classList.add('dark');
-            }
-            
-            // Show welcome notification
-            this.$nextTick(() => {
-                this.showNotification('success', '✨ Gold Deal Finder Premium loaded');
-            });
-        },
-        
-        // ========== METHODS ==========
-        methods: {
-            // ========== ✅ FIXED: LOAD LATEST SCAN ONLY ==========
-            async loadLatestScanOnly() {
-                this.loading = true;
-                try {
-                    // Get latest scan file directly
-                    const scansRes = await axios.get('/api/v1/historical/scans?limit=1');
-                    if (scansRes.data && scansRes.data.length > 0) {
-                        const latestScan = scansRes.data[0];
-                        this.currentScanId = latestScan.scan_id;
-                        this.currentScanTimestamp = latestScan.timestamp;
-                        
-                        // Load complete products from this scan only
-                        const productsRes = await axios.get(`/api/v1/historical/scan/${this.currentScanId}`);
-                        if (productsRes.data && productsRes.data.products) {
-                            this.allProducts = productsRes.data.products;
-                            this.latestProducts = this.allProducts.slice(0, 6);
-                            
-                            // Initialize filtered products with all products
-                            this.filteredProducts = {
-                                total: this.allProducts.length,
-                                products: [...this.allProducts]
-                            };
-                            this.applySorting();
-                            console.log(`✅ Loaded ${this.allProducts.length} products from scan ${this.currentScanId}`);
-                        }
-                    }
-                    
-                    // Load supporting data
-                    await Promise.all([
-                        this.fetchScans(), // Get last 5 scans for history
-                        this.fetchStats(),
-                        this.fetchSpotPrice(),
-                        this.fetchTimeline()
-                    ]);
-                    
-                    this.$nextTick(() => this.initCharts());
-                    this.calculateStats();
-                    
-                } catch (error) {
-                    console.error('Error loading latest scan:', error);
-                    this.showNotification('error', 'Failed to load latest scan data');
-                } finally {
-                    this.loading = false;
-                }
-            },
-            
-            // ========== ✅ FIXED: APPLY FILTERS ==========
-            applyFilters() {
-                debugger;
-                if (!this.allProducts.length) {
-                    this.filteredProducts = { total: 0, products: [] };
-                    return;
-                }
-                
-                let filtered = [...this.allProducts];
-                
-                // Source filter
-                if (this.filters.source) {
-                    filtered = filtered.filter(p => p.source === this.filters.source);
-                }
-                
-                // Purity filter
-                if (this.filters.purity) {
-                    filtered = filtered.filter(p => p.purity === this.filters.purity);
-                }
-                
-                // Discount range
-                filtered = filtered.filter(p => 
-                    p.discount_percent >= this.filters.min_discount && 
-                    p.discount_percent <= this.filters.max_discount
-                );
-                
-                // Weight range
-                filtered = filtered.filter(p => 
-                    p.weight_grams >= this.filters.min_weight && 
-                    p.weight_grams <= this.filters.max_weight
-                );
-                
-                // Search
-                if (this.filters.search) {
-                    const searchLower = this.filters.search.toLowerCase();
-                    filtered = filtered.filter(p => 
-                        p.title.toLowerCase().includes(searchLower) ||
-                        p.brand.toLowerCase().includes(searchLower) ||
-                        p.purity.toLowerCase().includes(searchLower)
-                    );
-                }
-                
-                // In stock only
-                if (this.filters.inStock) {
-                    filtered = filtered.filter(p => p.available !== false);
-                }
-                
-                // Favorites only
-                if (this.filters.onlyFavorites) {
-                    filtered = filtered.filter(p => this.favorites.includes(p.url));
-                }
-                
-                // Update filtered products
-                this.filteredProducts = {
-                    total: filtered.length,
-                    products: filtered
-                };
-                
-                this.applySorting();
-                console.log(`🔍 Filtered: ${filtered.length} of ${this.allProducts.length} products`);
-            },
-            
-            // ========== ✅ FIXED: APPLY SORTING ==========
-            applySorting() {
-                if (!this.filteredProducts.products?.length) return;
-                
-                const sortField = this.sortBy;
-                const sortMultiplier = this.sortOrder === 'desc' ? -1 : 1;
-                
-                this.filteredProducts.products.sort((a, b) => {
-                    let valA = a[sortField] || 0;
-                    let valB = b[sortField] || 0;
-                    
-                    if (sortField === 'timestamp') {
-                        valA = new Date(valA).getTime();
-                        valB = new Date(valB).getTime();
-                    }
-                    
-                    if (valA < valB) return -1 * sortMultiplier;
-                    if (valA > valB) return 1 * sortMultiplier;
-                    return 0;
+
+            formatDate(value) {
+                if (!value) return 'Unknown';
+                return new Date(value).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
                 });
             },
-            
-            // ========== FETCH SUPPORTING DATA ==========
-            async fetchScans() {
-                try {
-                    const res = await axios.get('/api/v1/historical/scans?limit=5');
-                    this.scans = res.data || [];
-                } catch (error) {
-                    console.error('Error fetching scans:', error);
-                    this.scans = [];
-                }
+
+            formatTimeAgo(value) {
+                if (!value) return 'Unknown';
+                const diffMs = Date.now() - new Date(value).getTime();
+                const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+                if (diffHours < 1) return 'Less than 1 hour ago';
+                if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+                const diffDays = Math.round(diffHours / 24);
+                return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
             },
-            
-            async fetchStats() {
-                try {
-                    const res = await axios.get('/api/v1/stats/summary');
-                    this.stats = res.data || { live: {}, historical: {} };
-                } catch (error) {
-                    console.error('Error fetching stats:', error);
-                }
+
+            discountTone(value) {
+                return numeric(value) >= 0 ? 'tone-positive' : 'tone-negative';
             },
-            
-            async fetchSpotPrice() {
-                try {
-                    const res = await axios.get('/api/v1/spot-price');
-                    this.spotPrice = res.data;
-                } catch (error) {
-                    console.error('Error fetching spot price:', error);
-                }
+
+            getErrorMessage(error, fallback) {
+                return (
+                    error?.response?.data?.detail?.message ||
+                    error?.response?.data?.detail ||
+                    error?.message ||
+                    fallback
+                );
             },
-            
-            async fetchTimeline() {
-                try {
-                    const res = await axios.get('/api/v1/historical/timeline?days=30');
-                    this.timeline = res.data;
-                    this.$nextTick(() => this.updateTimelineChart());
-                } catch (error) {
-                    console.error('Error fetching timeline:', error);
-                }
-            },
-            
-            async loadSpotPriceHistory() {
-                // Simulate price history for demo
-                this.spotPriceHistory = Array.from({ length: 30 }, (_, i) => ({
-                    date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    price: 5800 + Math.floor(Math.random() * 400)
-                }));
-            },
-            
-            // ========== STATS CALCULATION ==========
-            calculateStats() {
-                if (!this.allProducts.length) return;
-                
-                this.averagePricePerGram = this.allProducts.reduce((acc, p) => acc + (p.price_per_gram || 0), 0) / this.allProducts.length;
-                this.totalValue = this.allProducts.reduce((acc, p) => acc + (p.selling_price || 0), 0);
-                this.bestDeal = this.allProducts.reduce((best, p) => 
-                    (p.discount_percent || 0) > (best?.discount_percent || 0) ? p : best, null);
-            },
-            
-            // ========== FAVORITES ==========
-            toggleFavorite(product) {
-                const index = this.favorites.indexOf(product.url);
-                if (index === -1) {
-                    this.favorites.push(product.url);
-                    this.showNotification('success', '⭐ Added to favorites');
-                } else {
-                    this.favorites.splice(index, 1);
-                    this.showNotification('info', 'Removed from favorites');
-                }
-            },
-            
-            isFavorite(product) {
-                return this.favorites.includes(product.url);
-            },
-            
-            // ========== EXPORT ==========
-            async exportData() {
-                this.exporting = true;
-                try {
-                    let data = this.filteredProducts.products;
-                    let filename = `gold-deals-${new Date().toISOString().split('T')[0]}`;
-                    
-                    if (this.exportFormat === 'csv') {
-                        this.exportCSV(data, filename);
-                    } else if (this.exportFormat === 'json') {
-                        this.exportJSON(data, filename);
-                    }
-                    
-                    this.showNotification('success', `📊 Exported ${data.length} products`);
-                    this.showExportModal = false;
-                } catch (error) {
-                    console.error('Export error:', error);
-                    this.showNotification('error', 'Export failed');
-                } finally {
-                    this.exporting = false;
-                }
-            },
-            
-            exportCSV(data, filename) {
-                const headers = ['Source', 'Brand', 'Title', 'Purity', 'Weight', 'Price', 'Discount', 'Price/g', 'URL'];
-                const rows = data.map(p => [
-                    p.source,
-                    p.brand,
-                    p.title.replace(/,/g, ';'),
-                    p.purity,
-                    p.weight_grams,
-                    p.selling_price,
-                    `${p.discount_percent}%`,
-                    p.price_per_gram,
-                    p.url
-                ]);
-                
-                const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${filename}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-            },
-            
-            exportJSON(data, filename) {
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${filename}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-            },
-            
-            // ========== PRICE ALERTS ==========
-            setPriceAlert(product) {
-                this.alertProduct = product;
-                this.alertPrice = Math.round(product.selling_price * 0.9); // 10% below current
-                this.showPriceAlertModal = true;
-            },
-            
-            savePriceAlert() {
-                const alert = {
-                    id: Date.now(),
-                    product: this.alertProduct,
-                    targetPrice: this.alertPrice,
-                    createdAt: new Date().toISOString(),
-                    active: true
-                };
-                
-                this.priceAlerts.push(alert);
-                localStorage.setItem('priceAlerts', JSON.stringify(this.priceAlerts));
-                this.showPriceAlertModal = false;
-                this.showNotification('success', `🔔 Alert set for ₹${this.alertPrice.toLocaleString()}`);
-            },
-            
-            removePriceAlert(alertId) {
-                this.priceAlerts = this.priceAlerts.filter(a => a.id !== alertId);
-                localStorage.setItem('priceAlerts', JSON.stringify(this.priceAlerts));
-                this.showNotification('info', 'Price alert removed');
-            },
-            
-            // ========== NOTIFICATIONS ==========
-            showNotification(type, message, duration = 3000) {
-                const id = this.notificationId++;
-                const notification = { id, type, message };
-                
-                this.notifications.push(notification);
-                
-                setTimeout(() => {
-                    const index = this.notifications.findIndex(n => n.id === id);
-                    if (index !== -1) this.notifications.splice(index, 1);
+
+            showNotification(type, message, duration = 3200) {
+                const id = this.notificationId + 1;
+                this.notificationId = id;
+                this.notifications.push({ id, type, message });
+                window.setTimeout(() => {
+                    this.notifications = this.notifications.filter((notification) => notification.id !== id);
                 }, duration);
             },
-            
-            // ========== KEYBOARD SHORTCUTS ==========
+
+            notificationClass(type) {
+                if (type === 'error') return 'toast toast-error';
+                if (type === 'success') return 'toast toast-success';
+                return 'toast toast-info';
+            },
+
+            setupAutoRefresh() {
+                window.setInterval(() => this.fetchSpotPrice().catch(() => {}), 5 * 60 * 1000);
+                window.setInterval(() => this.checkForNewScan(), 5 * 60 * 1000);
+            },
+
+            applyTheme() {
+                document.documentElement.classList.toggle('dark', this.darkMode);
+            },
+
+            toggleTheme() {
+                this.darkMode = !this.darkMode;
+            },
+
             initKeyboardShortcuts() {
                 window.addEventListener('keydown', this.handleKeyDown);
-                window.addEventListener('keyup', this.handleKeyUp);
             },
-            
-            handleKeyDown(e) {
-                this.keysPressed[e.key.toLowerCase()] = true;
-                
-                // Cmd+F or Ctrl+F: Focus search
-                if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-                    e.preventDefault();
+
+            handleKeyDown(event) {
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+                    event.preventDefault();
                     this.focusSearch();
                 }
-                
-                // Cmd+R or Ctrl+R: Refresh
-                if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
-                    e.preventDefault();
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r') {
+                    event.preventDefault();
                     this.refreshData();
                 }
-                
-                // Cmd+N or Ctrl+N: New scan
-                if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-                    e.preventDefault();
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
+                    event.preventDefault();
                     this.showScanModal = true;
                 }
-                
-                // Cmd+D or Ctrl+D: Dark mode
-                if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-                    e.preventDefault();
-                    this.darkMode = !this.darkMode;
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') {
+                    event.preventDefault();
+                    this.toggleTheme();
                 }
-                
-                // Cmd+E or Ctrl+E: Export
-                if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
-                    e.preventDefault();
-                    this.showExportModal = true;
-                }
-                
-                // Cmd+, : Settings
-                if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-                    e.preventDefault();
-                    this.showSettingsModal = true;
-                }
-                
-                // ESC: Close modals
-                if (e.key === 'Escape') {
-                    this.closeAllModals();
+                if (event.key === 'Escape') {
+                    this.closeAllPanels();
                 }
             },
-            
-            handleKeyUp(e) {
-                delete this.keysPressed[e.key.toLowerCase()];
-            },
-            
-            focusSearch() {
-                const searchInput = document.querySelector('input[placeholder*="Search"]');
-                if (searchInput) searchInput.focus();
-            },
-            
-            closeAllModals() {
-                this.showScanModal = false;
-                this.showExportModal = false;
-                this.showFavoritesModal = false;
-                this.showSettingsModal = false;
-                this.showPriceAlertModal = false;
-                this.showPriceHistoryModal = false;
-                this.selectedProduct = null;
-            },
-            
-            // ========== PAGINATION CONTROLS ==========
-            nextPage() {
-                if (this.currentPage < this.totalPages) {
-                    this.currentPage++;
+
+            destroyCharts() {
+                if (this.distributionChart) {
+                    this.distributionChart.destroy();
+                    this.distributionChart = null;
+                }
+                if (this.scanTrendChart) {
+                    this.scanTrendChart.destroy();
+                    this.scanTrendChart = null;
                 }
             },
-            
-            prevPage() {
-                if (this.currentPage > 1) {
-                    this.currentPage--;
+
+            renderCharts() {
+                if (typeof Chart === 'undefined') return;
+                this.renderDistributionChart();
+                this.renderScanTrendChart();
+            },
+
+            renderDistributionChart() {
+                const canvas = document.getElementById('distributionChart');
+                if (!canvas) return;
+                if (this.distributionChart) {
+                    this.distributionChart.destroy();
                 }
-            },
-            
-            goToPage(page) {
-                if (page >= 1 && page <= this.totalPages) {
-                    this.currentPage = page;
-                }
-            },
-            
-            // ========== SCAN ACTIONS ==========
-            async startNewScan() {
-                this.scanning = true;
-                try {
-                    const res = await axios.get('/api/v1/scan');
-                    this.showNotification('success', `🔄 Scan started! Found ${res.data.total_count} products`);
-                    this.showScanModal = false;
-                    
-                    // Reload latest scan after 3 seconds
-                    setTimeout(() => {
-                        this.loadLatestScanOnly();
-                        this.showNotification('success', '✨ Latest scan loaded');
-                    }, 3000);
-                    
-                } catch (error) {
-                    console.error('Error starting scan:', error);
-                    this.showNotification('error', 'Failed to start scan');
-                } finally {
-                    this.scanning = false;
-                }
-            },
-            
-            async refreshData() {
-                this.loading = true;
-                try {
-                    await axios.post('/api/v1/cache/clear');
-                    await this.loadLatestScanOnly();
-                    this.showNotification('success', '✨ Data refreshed');
-                } catch (error) {
-                    console.error('Error refreshing data:', error);
-                    this.showNotification('error', 'Refresh failed');
-                } finally {
-                    this.loading = false;
-                }
-            },
-            
-            resetFilters() {
-                this.filters = {
-                    source: '',
-                    purity: '',
-                    min_discount: -100,
-                    max_discount: 100,
-                    min_weight: 0,
-                    max_weight: 100,
-                    search: '',
-                    inStock: false,
-                    onlyFavorites: false
-                };
-                this.showNotification('info', 'Filters reset');
-            },
-            
-            // ========== PRODUCT ACTIONS ==========
-            viewProductDetails(product) {
-                this.selectedProduct = product;
-            },
-            
-            handleImageError(e) {
-                e.target.src = 'https://placehold.co/400x400/FFD700/FFFFFF?text=Gold';
-            },
-            
-            shareProduct(product) {
-                if (navigator.share) {
-                    navigator.share({
-                        title: product.title,
-                        text: `💰 ${product.discount_percent}% off! ₹${product.selling_price.toLocaleString()}`,
-                        url: product.url
-                    }).catch(() => {});
-                } else {
-                    navigator.clipboard.writeText(product.url);
-                    this.showNotification('success', '📋 Link copied to clipboard');
-                }
-            },
-            
-            // ========== FORMATTING ==========
-            formatCurrency(value) {
-                if (!value) return '₹0';
-                return `₹${value.toLocaleString('en-IN')}`;
-            },
-            
-            formatWeight(grams) {
-                if (grams >= 1000) {
-                    return `${(grams / 1000).toFixed(2)}kg`;
-                }
-                return `${grams}g`;
-            },
-            
-            formatDiscount(discount) {
-                return `${discount.toFixed(1)}%`;
-            },
-            
-            formatDate(timestamp) {
-                if (!timestamp) return 'N/A';
-                try {
-                    return new Date(timestamp).toLocaleDateString('en-IN', {
-                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                    });
-                } catch {
-                    return 'N/A';
-                }
-            },
-            
-            formatDateTime(timestamp) {
-                if (!timestamp) return 'N/A';
-                try {
-                    return new Date(timestamp).toLocaleString('en-IN', {
-                        day: '2-digit', month: 'short', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit', second: '2-digit'
-                    });
-                } catch {
-                    return 'N/A';
-                }
-            },
-            
-            // ========== STYLING ==========
-            getDiscountClass(discount) {
-                if (discount >= 30) return 'bg-gradient-to-r from-red-500 to-pink-500 text-white';
-                if (discount >= 20) return 'bg-gradient-to-r from-orange-500 to-amber-500 text-white';
-                if (discount >= 10) return 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white';
-                if (discount >= 5) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
-                return 'bg-gray-500 text-white';
-            },
-            
-            getSourceIcon(source) {
-                const icons = {
-                    'AJIO': 'fa-bolt',
-                    'Myntra': 'fa-shopping-bag',
-                    'Amazon': 'fa-amazon',
-                    'Flipkart': 'fa-shopping-cart'
-                };
-                return icons[source] || 'fa-store';
-            },
-            
-            getTypeIcon(type) {
-                return type === 'jewellery' ? 'fa-ring' : 'fa-coins';
-            },
-            
-            getWeightColor(weight) {
-                if (weight >= 20) return 'text-purple-600';
-                if (weight >= 10) return 'text-blue-600';
-                if (weight >= 5) return 'text-green-600';
-                return 'text-gray-600';
-            },
-            
-            // ========== CHARTS ==========
-            initCharts() {
-                this.initScansChart();
-                this.initDistributionChart();
-            },
-            
-            initScansChart() {
-                const ctx = document.getElementById('scansChart');
-                if (!ctx || !this.scans?.length) return;
-                if (this.scansChart) this.scansChart.destroy();
-                
-                const recent = this.scans.slice(0, 7).reverse();
-                try {
-                    this.scansChart = new Chart(ctx.getContext('2d'), {
-                        type: 'line',
-                        data: {
-                            labels: recent.map(s => {
-                                try {
-                                    return new Date(s.timestamp).toLocaleDateString('en-IN', {
-                                        day: '2-digit', month: 'short'
-                                    });
-                                } catch {
-                                    return 'N/A';
-                                }
-                            }),
-                            datasets: [
-                                {
-                                    label: 'Products',
-                                    data: recent.map(s => s.total_products || 0),
-                                    borderColor: '#FDB813',
-                                    backgroundColor: 'rgba(253, 184, 19, 0.1)',
-                                    tension: 0.4,
-                                    fill: true
-                                },
-                                {
-                                    label: 'Deals',
-                                    data: recent.map(s => s.good_deals || 0),
-                                    borderColor: '#27ae60',
-                                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                                    tension: 0.4,
-                                    fill: true
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: { mode: 'index', intersect: false }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error('Chart error:', e);
-                }
-            },
-            
-            initDistributionChart() {
-                const ctx = document.getElementById('distributionChart');
-                if (!ctx) return;
-                if (this.distributionChart) this.distributionChart.destroy();
-                
-                // Use latest scan data instead of historical
-                const sources = {};
-                this.allProducts.forEach(p => {
-                    sources[p.source] = (sources[p.source] || 0) + 1;
-                });
-                
-                const labels = Object.keys(sources);
-                const data = Object.values(sources);
-                
+                const labels = Object.keys(this.currentSourceDistribution);
+                const data = Object.values(this.currentSourceDistribution);
                 if (!labels.length) return;
-                
-                try {
-                    this.distributionChart = new Chart(ctx.getContext('2d'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                data: data,
-                                backgroundColor: ['#FDB813', '#8e44ad', '#e74c3c', '#3498db', '#2ecc71'],
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { position: 'bottom' }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error('Chart error:', e);
-                }
-            },
-            
-            updateTimelineChart() {
-                const ctx = document.getElementById('timelineChart');
-                if (!ctx || !this.timeline?.timeline) return;
-                if (this.timelineChart) this.timelineChart.destroy();
-                
-                const dates = Object.keys(this.timeline.timeline).sort().slice(-14);
-                try {
-                    this.timelineChart = new Chart(ctx.getContext('2d'), {
-                        type: 'bar',
-                        data: {
-                            labels: dates,
-                            datasets: [
-                                {
-                                    label: 'Scans',
-                                    data: dates.map(d => this.timeline.timeline[d]?.scans || 0),
-                                    backgroundColor: '#FDB813',
-                                    yAxisID: 'y'
+                this.distributionChart = new Chart(canvas.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            backgroundColor: ['#d6a648', '#8f6a20', '#3d6a80', '#7a3f29', '#5b7f58'],
+                            borderWidth: 0,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: this.darkMode ? '#f8f3e7' : '#3d3122',
                                 },
-                                {
-                                    label: 'Products',
-                                    data: dates.map(d => this.timeline.timeline[d]?.products || 0),
-                                    backgroundColor: '#3498db',
-                                    yAxisID: 'y1'
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
                             },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    title: { display: true, text: 'Scans' }
+                        },
+                    },
+                });
+            },
+
+            renderScanTrendChart() {
+                const canvas = document.getElementById('scanTrendChart');
+                if (!canvas) return;
+                if (this.scanTrendChart) {
+                    this.scanTrendChart.destroy();
+                }
+                if (!this.scanTrendSeries.length) return;
+                this.scanTrendChart = new Chart(canvas.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: this.scanTrendSeries.map((scan) => this.formatDate(scan.timestamp)),
+                        datasets: [
+                            {
+                                label: 'Products',
+                                data: this.scanTrendSeries.map((scan) => numeric(scan.total_products)),
+                                borderColor: '#d6a648',
+                                backgroundColor: 'rgba(214, 166, 72, 0.18)',
+                                fill: true,
+                                tension: 0.35,
+                            },
+                            {
+                                label: 'Good deals',
+                                data: this.scanTrendSeries.map((scan) => numeric(scan.good_deals)),
+                                borderColor: '#3d6a80',
+                                backgroundColor: 'rgba(61, 106, 128, 0.12)',
+                                fill: true,
+                                tension: 0.35,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: this.darkMode ? '#f8f3e7' : '#3d3122',
                                 },
-                                y1: {
-                                    beginAtZero: true,
-                                    position: 'right',
-                                    title: { display: true, text: 'Products' },
-                                    grid: { drawOnChartArea: false }
-                                }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error('Chart error:', e);
-                }
+                            },
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: this.darkMode ? '#d9d1c2' : '#6f5d46' },
+                                grid: { color: this.darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(61,49,34,0.06)' },
+                            },
+                            y: {
+                                ticks: { color: this.darkMode ? '#d9d1c2' : '#6f5d46' },
+                                grid: { color: this.darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(61,49,34,0.06)' },
+                            },
+                        },
+                    },
+                });
             },
-            
-            // ========== AUTO REFRESH ==========
-            setupAutoRefresh() {
-                // Refresh spot price every 5 minutes
-                setInterval(() => this.fetchSpotPrice(), 5 * 60 * 1000);
-                
-                // Check for new scans every 10 minutes
-                setInterval(() => {
-                    this.checkForNewScan();
-                }, 10 * 60 * 1000);
-            },
-            
-            async checkForNewScan() {
-                try {
-                    const res = await axios.get('/api/v1/historical/scans?limit=1');
-                    if (res.data[0]?.scan_id !== this.currentScanId) {
-                        this.showNotification('info', '🔄 New scan detected! Refreshing...');
-                        this.loadLatestScanOnly();
-                    }
-                } catch (e) {
-                    console.error('Error checking for new scan:', e);
-                }
-            },
-            
-            // ========== UTILITIES ==========
-            copyToClipboard(text) {
-                navigator.clipboard.writeText(text);
-                this.showNotification('success', '📋 Copied to clipboard');
-            },
-            
-            getContrastColor(hexcolor) {
-                // Simple contrast calculator for badges
-                const r = parseInt(hexcolor.substr(1, 2), 16);
-                const g = parseInt(hexcolor.substr(3, 2), 16);
-                const b = parseInt(hexcolor.substr(5, 2), 16);
-                const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-                return (yiq >= 128) ? 'text-gray-900' : 'text-white';
-            },
-            
-            // ========== DEBUG ==========
-            toggleDebug() {
-                this.debug = !this.debug;
-                console.log('Debug mode:', this.debug);
-                if (this.debug) {
-                    console.log('All Products:', this.allProducts);
-                    console.log('Filtered:', this.filteredProducts);
-                    console.log('Current Page:', this.currentPage);
-                    console.log('Total Pages:', this.totalPages);
-                }
-            }
-        }
+        },
     });
-    
-    console.log('✅ Gold Deal Finder Premium ready!');
-    
-} catch (error) {
-    console.error('❌ FATAL ERROR:', error);
-    document.body.innerHTML += `<div style="padding: 20px; background: #ffebee; border: 2px solid #f44336; margin: 20px;">
-        <h3 style="color: #f44336;">❌ Application Failed to Start</h3>
-        <pre style="background: #fff; padding: 10px;">${error.toString()}</pre>
-    </div>`;
-}
+})();
