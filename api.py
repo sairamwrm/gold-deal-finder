@@ -538,22 +538,22 @@ async def get_scan_timeline(days: int = Query(30, ge=1, le=365)):
 async def _trigger_scan(background_tasks: BackgroundTasks) -> Dict[str, Any]:
     global last_scan_time
 
-    async with scan_lock:
-        now = datetime.utcnow()
-        if SCAN_COOLDOWN and last_scan_time and (now - last_scan_time) < SCAN_COOLDOWN:
-            remaining = int((SCAN_COOLDOWN - (now - last_scan_time)).total_seconds())
-            raise HTTPException(
-                status_code=429,
-                detail=error_detail(
-                    "scan_cooldown",
-                    f"Scan recently triggered. Try again in {max(1, remaining // 60)} minute(s).",
-                    retry_after_seconds=remaining,
-                ),
-            )
-        last_scan_time = now
+    # async with scan_lock:
+    #     now = datetime.utcnow()
+    #     if SCAN_COOLDOWN and last_scan_time and (now - last_scan_time) < SCAN_COOLDOWN:
+    #         remaining = int((SCAN_COOLDOWN - (now - last_scan_time)).total_seconds())
+    #         raise HTTPException(
+    #             status_code=429,
+    #             detail=error_detail(
+    #                 "scan_cooldown",
+    #                 f"Scan recently triggered. Try again in {max(1, remaining // 60)} minute(s).",
+    #                 retry_after_seconds=remaining,
+    #             ),
+    #         )
+    #     last_scan_time = now
 
     try:
-        products = await asyncio.to_thread(scraper.scrape_all)
+        products = await scraper.scrape_all()
     except Exception as exc:
         async with scan_lock:
             last_scan_time = None
@@ -596,7 +596,7 @@ async def get_spot_price():
         return cached
 
     try:
-        spot_price = price_calculator.get_live_gold_price()
+        spot_price = await price_calculator.get_live_gold_price()
     except Exception as exc:
         raise HTTPException(
             status_code=500,
