@@ -1,4 +1,4 @@
-# Gold Deal Finder
+ # Gold Deal Finder
 
 Gold Deal Finder scrapes gold listings, compares selling prices against a calculated benchmark, stores every scan locally, and exposes a dashboard for reviewing the latest scan with historical drill-down.
 
