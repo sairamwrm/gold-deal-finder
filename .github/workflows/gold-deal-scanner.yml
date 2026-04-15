@@ -2,7 +2,7 @@ name: Gold Deal Scanner
 
 on:
   schedule:
-    - cron: '*/2* * * *'   # every 10 minutes
+    - cron: '*/2 * * * *'   # every 10 minutes
   workflow_dispatch:
     inputs:
       test_run:
