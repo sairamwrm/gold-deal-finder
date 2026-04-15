@@ -32,9 +32,10 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       GOLDAPI_TOKEN: ${{ secrets.GOLDAPI_TOKEN }}
-      METALPRICE_API_KEY: ${{ secrets.METALPRICE_API_KEY }}
-      TEST_RUN: ${{ github.event.inputs.test_run || 'false' }}
-      FORCE_SCAN: ${{ github.event.inputs.force_scan || 'false' }}
+      METALPRICE_API_KEY: ${{ secrets.METALPRICE_API_KEY }} 
+       TEST_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.test_run }}
+       FORCE_SCAN: ${{ github.event_name == 'schedule' && 'false' || inputs.force_scan }}
+
     
     steps:
       - name: Checkout repository
