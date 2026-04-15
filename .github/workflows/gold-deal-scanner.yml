@@ -1,9 +1,5 @@
 name: Gold Deal Scanner
 
-
-- name: Show trigger
-  run: echo "Triggered by $GITHUB_EVENT_NAME"
-
 on:
   schedule:
     - cron: '*/5 * * * *'
