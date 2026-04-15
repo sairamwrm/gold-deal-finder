@@ -16,11 +16,6 @@ on:
         default: false
         type: boolean
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-
 # Cancel previous runs if new one starts
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
