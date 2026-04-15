@@ -51,13 +51,13 @@ SEARCH_PARAMS = {
         'pageSize': 45,
         'format': 'json',
         'fields': 'SITE',
-        'pincode': '384315',
-        'state': 'GUJARAT',
-        'city': 'MAHESANA'
+        'pincode': '501503',
+        'state': 'TELANGANA',
+        'city': 'HYDERABAD'
     },
     'myntra': {
         'rows': 50,
-        'pincode': '384345',
+        'pincode': '501503',
         'plaEnabled': 'true'
     }
 }
