@@ -37,8 +37,9 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       GOLDAPI_TOKEN: ${{ secrets.GOLDAPI_TOKEN }}
       METALPRICE_API_KEY: ${{ secrets.METALPRICE_API_KEY }} 
-       TEST_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.test_run }}
-       FORCE_SCAN: ${{ github.event_name == 'schedule' && 'false' || inputs.force_scan }}
+TEST_RUN: "${{ github.event_name == 'schedule' && 'false' || inputs.test_run }}"
+FORCE_SCAN: "${{ github.event_name == 'schedule' && 'false' || inputs.force_scan }}"
+
 
     
     steps:
