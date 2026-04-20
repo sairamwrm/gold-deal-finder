@@ -1,6 +1,5 @@
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from price_calculator import GoldPriceCalculator
 from typing import List, Dict
@@ -13,24 +12,33 @@ class TelegramAlertBot:
         self.bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
         self.price_calculator = GoldPriceCalculator()
 
+    def _safe(self, x) -> str:
+        return escape(str(x)) if x is not None else ""
+
+    def _fmt_money(self, value) -> str:
+        try:
+            return f"₹{float(value):,.2f}"
+        except Exception:
+            return "₹0.00"
+
     async def send_alert(self, product: Dict):
         """Send alert for a single product"""
         try:
             message = self._format_product_message(product)
 
-            # Keep callback_data short (Telegram limit is strict)
-            short_title = (product.get("title") or "")[:20]
-            short_source = (product.get("source") or "")[:10]
-            callback_key = f"details_{short_source}_{short_title}".replace(" ", "_")
+            # Inline keyboard
+            url = product.get("url", "")
+            short_title = (product.get("title") or "")[:20].replace(" ", "_")
+            short_source = (product.get("source") or "")[:10].replace(" ", "_")
+            callback_key = f"details_{short_source}_{short_title}"
 
             keyboard = [
-                [InlineKeyboardButton("🛒 View Product", url=product.get("url", ""))],
+                [InlineKeyboardButton("🛒 View Product", url=url)],
                 [InlineKeyboardButton("📊 Price Details", callback_data=callback_key)]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
-            # If sending photo: caption has a smaller limit than normal messages.
-            # Keep it safe by trimming caption.
+            # Send photo if available
             if product.get("image_url"):
                 try:
                     caption = message
@@ -47,8 +55,8 @@ class TelegramAlertBot:
                     return
                 except Exception as e:
                     print(f"Failed to send photo: {e}")
-                    # Fall through to text message
 
+            # Send as text
             await self.bot.send_message(
                 chat_id=TELEGRAM_CHAT_ID,
                 text=message,
@@ -60,22 +68,11 @@ class TelegramAlertBot:
         except Exception as e:
             print(f"Error sending Telegram alert: {e}")
 
-    def _fmt_money(self, value) -> str:
-        try:
-            return f"₹{float(value):,.2f}"
-        except Exception:
-            return "₹0.00"
-
-    def _safe(self, x) -> str:
-        """HTML escape for Telegram HTML parse_mode."""
-        return escape(str(x)) if x is not None else ""
-
     def _format_product_message(self, product: Dict) -> str:
-        """Format product information for Telegram message (includes payment discount fields)."""
+        """Format product information for Telegram message including payment fields."""
 
         discount_percent = float(product.get("discount_percent") or 0)
 
-        # Emoji based on discount
         if discount_percent > 15:
             discount_emoji = "🔥🔥"
         elif discount_percent > 10:
@@ -85,36 +82,31 @@ class TelegramAlertBot:
         else:
             discount_emoji = "💎"
 
-        # Product type emoji
         is_jewellery = bool(product.get("is_jewellery"))
         type_emoji = "💍" if is_jewellery else "🪙"
 
-        # Core pricing fields
+        title = product.get("title") or ""
+        title_short = title[:80] + ("..." if len(title) > 80 else "")
+
         selling_price = float(product.get("selling_price") or 0)
         expected_price = float(product.get("expected_price") or 0)
 
-        # Payment discount fields (may not exist for old runs)
-        pay_now_price = product.get("pay_now_price", selling_price)
-        effective_price = product.get("effective_price", selling_price)
-        payment_discount_value = product.get("payment_discount_value", 0)
+        # Payment fields (fallback safely if missing)
+        pay_now_price = float(product.get("pay_now_price", selling_price) or selling_price)
+        effective_price = float(product.get("effective_price", selling_price) or selling_price)
+        payment_discount_value = float(product.get("payment_discount_value", 0) or 0)
         payment_discount_rules = product.get("payment_discount_rules", "NONE")
         best_payment_mode = product.get("best_payment_mode", "NONE")
 
-        # price per gram – prefer effective_price if available
-        price_per_gram = product.get("price_per_gram", None)
+        weight = float(product.get("weight_grams") or 0)
+        price_per_gram = product.get("price_per_gram")
         if price_per_gram is None:
-            try:
-                w = float(product.get("weight_grams") or 0)
-                price_per_gram = (float(effective_price) / w) if w > 0 else 0
-            except Exception:
-                price_per_gram = 0
+            price_per_gram = (effective_price / weight) if weight > 0 else 0
 
-        # Optional components
         making_charges_percent = float(product.get("making_charges_percent") or 0)
         gst_percent = float(product.get("gst_percent") or 0)
         spot_price = float(product.get("spot_price") or 0)
 
-        # Timestamp formatting
         found_at = ""
         try:
             ts = product.get("timestamp")
@@ -123,9 +115,6 @@ class TelegramAlertBot:
         except Exception:
             found_at = ""
 
-        # Build message (HTML parse_mode supported by Telegram) [1](https://regexr.com/)[2](https://www.geeksforgeeks.org/python/python-regex/)
-        title = product.get("title") or ""
-        title_short = title[:80] + ("..." if len(title) > 80 else "")
         message = (
             f"{discount_emoji} <b>GOLD DEAL ALERT!</b> {discount_emoji}\n\n"
             f"{type_emoji} <b>{self._safe(product.get('source',''))} - {self._safe(product.get('brand',''))}</b>\n"
@@ -145,8 +134,11 @@ class TelegramAlertBot:
             f"<code>🎯 DISCOUNT: {discount_percent:.1f}%</code>\n\n"
             f"<b>🏪 Market Spot Price:</b> ₹{spot_price:,.2f}/g\n"
             f"<b>🏷 Payment Rules:</b> <i>{self._safe(payment_discount_rules)}</i>\n"
-            f"{('<b>⏰ Found at:</b> ' + found_at) if found_at else ''}"
         )
+
+        if found_at:
+            message += f"\n<b>⏰ Found at:</b> {found_at}"
+
         return message
 
     async def send_bulk_alerts(self, products: List[Dict]):
@@ -216,26 +208,3 @@ class TelegramAlertBot:
             text=summary,
             parse_mode="HTML"
         )
-
-    async def send_status_update(self, total_products: int, good_deals: int, scraping_time: float):
-        """Send scraping status update"""
-        status = (
-            "🔄 <b>Scraping Complete</b>\n\n"
-            "✅ Successfully scanned:\n"
-            "   • Myntra - Gold products\n"
-            "   • AJIO - Gold jewellery & coins\n\n"
-            f"📊 <b>Results:</b>\n"
-            f"   ├ Total products found: {total_products}\n"
-            f"   ├ Good deals found: {good_deals}\n"
-            f"   └ Scraping time: {scraping_time:.1f}s\n\n"
-            "⏰ <b>Next scan:</b> Scheduled\n"
-            "📈 <b>Live gold price:</b> Updated with cache\n\n"
-            "<i>System running normally. Alerts sent for all good deals.</i>"
-        )
-
-        await self.bot.send_message(
-            chat_id=TELEGRAM_CHAT_ID,
-            text=status,
-            parse_mode="HTML"
-        )
-``
