@@ -9,6 +9,7 @@ from config import AJIO_API_URL, SEARCH_PARAMS, REQUEST_DELAY
 from price_calculator import GoldPriceCalculator
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from payment_discounts import apply_payment_discounts, best_price_by_payment_mode
 from config import PAYMENT_DISCOUNT_RULES, PAYMENT_MODES_TO_TRY, DEFAULT_PAYMENT_MODE
 
@@ -64,15 +65,12 @@ class GoldScraper:
             "Connection": "keep-alive",
         }
 
-        # First visit to generate cookies
         s.get("https://www.myntra.com", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
 
-        # Visit gold coins page
         s.get("https://www.myntra.com/gold-coin", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
 
-        # Set pincode cookie
         s.cookies.set(
             "mynt-ulc",
             "pincode:501503|addressId:",
@@ -85,18 +83,13 @@ class GoldScraper:
         """
         Extract purity and weight from a gold product title.
         Returns: (purity, weight_in_grams)
-
-        Purity can be None for items labelled 'Pure Gold' without explicit karat.
-        Weight can be None if no weight info is present in the title.
         """
         title = title or ""
         title_lower = title.lower()
 
-        # Quick exclusion
         if not is_real_gold_product(title):
             return None, None
 
-        # ── PURITY ───────────────────────────────────────────────────────────────
         purity = None
         purity_patterns = [
             (r'24\s*kt|24\s*karat|\b999\b|24k', '24K'),
@@ -110,25 +103,29 @@ class GoldScraper:
                 purity = purity_value
                 break
 
-        # ── WEIGHT ───────────────────────────────────────────────────────────────
         PURITY_NUMBERS = {24, 22, 18, 14, 999, 916, 750, 585, 995}
 
         def is_valid_weight(n: float) -> bool:
             return n not in PURITY_NUMBERS and 0.001 <= n <= 10_000
 
-        # ✅ CASE 1 (FIXED): Handles "3GMS (2gm+1gm)" and "4.5gm (0.5gm + 2gm + 2gm)"
-        # - If parentheses exist with weights, sum inside.
-        # - If outside total exists, validate it; prefer it only when it matches inside sum.
-        paren_total_pat = re.compile(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b\s*\(([^)]+)\)', re.IGNORECASE)
+        paren_total_pat = re.compile(
+            r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b\s*\(([^)]+)\)',
+            re.IGNORECASE
+        )
         m = paren_total_pat.search(title_lower)
         if m:
             outside_total = float(m.group(1))
             inside_text = m.group(2)
 
-            inside_weights = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', inside_text, flags=re.IGNORECASE)]
+            inside_weights = [
+                float(x) for x in re.findall(
+                    r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
+                    inside_text,
+                    flags=re.IGNORECASE
+                )
+            ]
             if inside_weights:
                 inside_sum = sum(inside_weights)
-                # Use outside only if it matches inside sum closely; else trust inside sum
                 weight_in_grams = outside_total if abs(outside_total - inside_sum) <= 0.05 else inside_sum
             else:
                 weight_in_grams = outside_total
@@ -136,14 +133,17 @@ class GoldScraper:
             if is_valid_weight(weight_in_grams):
                 return purity, round(weight_in_grams, 3)
 
-        # ✅ CASE 2 (FIXED): Plus sums like "0.5gm + 2gm + 2gm"
-        # IMPORTANT: If title has "(...)" and "+" inside parentheses, sum ONLY inside parentheses,
-        # otherwise the parser may incorrectly include outside totals like "3gms (2gm+1gm)".
         if '+' in title_lower:
             inside_parentheses = re.search(r'\(([^)]*\+[^)]*)\)', title_lower)
             if inside_parentheses:
                 text = inside_parentheses.group(1)
-                plus_weights = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', text, flags=re.IGNORECASE)]
+                plus_weights = [
+                    float(x) for x in re.findall(
+                        r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
+                        text,
+                        flags=re.IGNORECASE
+                    )
+                ]
                 plus_weights = [w for w in plus_weights if is_valid_weight(w)]
                 if plus_weights:
                     return purity, round(sum(plus_weights), 3)
@@ -159,14 +159,12 @@ class GoldScraper:
                 if plus_weights:
                     return purity, round(sum(plus_weights), 3)
 
-        # CASE 3: Hyphen before weight  "Coin-1gm"  "Coin- 0.500 gm"
         hyphen_match = re.search(r'-\s*(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', title_lower, flags=re.IGNORECASE)
         if hyphen_match:
             w = float(hyphen_match.group(1))
             if is_valid_weight(w):
                 return purity, round(w, 3)
 
-        # CASE 4: Milligrams  "100 Mg"
         mg_match = re.search(r'(\d+(?:\.\d+)?)\s*mg\b', title_lower, flags=re.IGNORECASE)
         if mg_match:
             w_mg = float(mg_match.group(1))
@@ -174,10 +172,9 @@ class GoldScraper:
             if is_valid_weight(grams):
                 return purity, round(grams, 6)
 
-        # CASE 5: General patterns
         weight_patterns = [
-            r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',  # "1 Gms", "5 Gram", "0.5 gm"
-            r'(\d+(?:\.\d+)?)\s*g(?!\w)',                 # "1G", "0.3g", "0.25G"
+            r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
+            r'(\d+(?:\.\d+)?)\s*g(?!\w)',
         ]
         all_weights: List[float] = []
         seen_pos = set()
@@ -195,7 +192,6 @@ class GoldScraper:
                     continue
 
         if all_weights:
-            # If all weights identical, return single; else sum
             if all(w == all_weights[0] for w in all_weights):
                 return purity, round(all_weights[0], 3)
             return purity, round(sum(all_weights), 3)
@@ -203,18 +199,12 @@ class GoldScraper:
         return purity, None
 
     def determine_product_type(self, title: str, description: str = "") -> str:
-        """
-        Determine if product is jewellery or coin/bar
-        """
         text = (title + " " + description).lower()
-
         coin_keywords = ['coin', 'sovereign', 'bar', 'biscuit', 'ingot', 'bullion', 'investment']
         jewellery_keywords = ['chain', 'pendant', 'ring', 'bangle', 'bracelet', 'earring',
                               'necklace', 'mangalsutra', 'jewellery', 'jewelry', 'ornament']
-
         coin_count = sum(1 for keyword in coin_keywords if keyword in text)
         jewellery_count = sum(1 for keyword in jewellery_keywords if keyword in text)
-
         return 'coin' if coin_count > jewellery_count else 'jewellery'
 
     def scrape_ajio(self) -> List[Dict]:
@@ -269,23 +259,19 @@ class GoldScraper:
             if 'silver' in title.lower():
                 return None
 
-            # Extract purity and weight
             purity, weight = self.extract_purity_and_weight(title)
 
             if not purity or weight is None:
                 print('AJIO>Skipping invalid purity/weight product :', title)
                 return None
 
-            # Skip very small items
             if weight < 0.3:
                 print('Skipping <0.3 product    :', title)
                 return None
 
-            # Determine product type
             product_type = self.determine_product_type(title, description)
             is_jewellery = (product_type == 'jewellery')
 
-            # Extract price
             price_data = product.get('price', {}) or {}
             selling_price2 = (price_data.get('value', 0) or 0)
 
@@ -297,36 +283,33 @@ class GoldScraper:
                 print('Skipping <1000 price product    :', title)
                 return None
 
-            # Calculate expected price
             expected_price_info = self.price_calculator.calculate_expected_price(
                 weight, purity, is_jewellery
             )
             expected_price = expected_price_info['total_expected']
 
-            # --- Apply payment discount modeling ---
-payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
+            # ✅ PAYMENT DISCOUNT MODELING (FIXED INDENTATION)
+            payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
 
-best = best_price_by_payment_mode(
-    site="AJIO",
-    selling_price=selling_price,
-    payment_modes=PAYMENT_MODES_TO_TRY,
-    rules=PAYMENT_DISCOUNT_RULES,
-    allow_stacking=True
-)
+            best = best_price_by_payment_mode(
+                site="AJIO",
+                selling_price=selling_price,
+                payment_modes=PAYMENT_MODES_TO_TRY,
+                rules=PAYMENT_DISCOUNT_RULES,
+                allow_stacking=True
+            )
 
-pay_now_price = best["pay_now_price"]
-effective_price = best["effective_price"]
-payment_discount_value = best["discount_value"]
-payment_rules = best["rules"]
-best_payment_mode = best["payment_mode"]
+            pay_now_price = best["pay_now_price"]
+            effective_price = best["effective_price"]
+            payment_discount_value = best["discount_value"]
+            payment_discount_rules = best["rules"]
+            best_payment_mode = best["payment_mode"]
 
-# Calculate discount using effective price
-discount_percent = self.price_calculator.calculate_discount_percentage(
-    effective_price, expected_price
-)
+            discount_percent = self.price_calculator.calculate_discount_percentage(
+                effective_price, expected_price
+            )
 
-# Price per gram should also use effective price (what it really costs)
-price_per_gram = effective_price / weight
+            price_per_gram = effective_price / weight
 
             return {
                 'source': 'AJIO',
@@ -336,10 +319,18 @@ price_per_gram = effective_price / weight
                 'purity': purity,
                 'product_type': product_type,
                 'is_jewellery': is_jewellery,
+
                 'selling_price': selling_price,
+                'pay_now_price': round(pay_now_price, 2),
+                'effective_price': round(effective_price, 2),
+                'payment_discount_value': round(payment_discount_value, 2),
+                'payment_discount_rules': payment_discount_rules,
+                'best_payment_mode': best_payment_mode,
+
                 'expected_price': round(expected_price, 2),
                 'discount_percent': discount_percent,
                 'price_per_gram': round(price_per_gram, 2),
+
                 'url': f"https://www.ajio.com{product.get('url', '')}",
                 'image_url': product.get('images', [{}])[0].get('url', '') if product.get('images') else '',
                 'brand': product.get('fnlColorVariantData', {}).get('brandName', 'Unknown'),
@@ -409,10 +400,6 @@ price_per_gram = effective_price / weight
         return products
 
     def _extract_myntra_price(self, price_data: Any) -> Tuple[float, float]:
-        """
-        Extract prices from Myntra product data
-        Returns: (selling_price, original_price)
-        """
         try:
             if isinstance(price_data, dict):
                 selling_price = price_data.get('discountedPrice', 0)
@@ -435,10 +422,9 @@ price_per_gram = effective_price / weight
             return 0.0, 0.0
 
     def _parse_myntra_product(self, product: Dict) -> Optional[Dict]:
-        """Parse Myntra product data with improved price handling"""
+        """Parse Myntra product data with payment discount modeling"""
         try:
             title = product.get('productName', '') or ''
-
             if not title:
                 return None
 
@@ -469,11 +455,28 @@ price_per_gram = effective_price / weight
             )
             expected_price = expected_price_info['total_expected']
 
-            discount_percent = self.price_calculator.calculate_discount_percentage(
-                selling_price, expected_price
+            # ✅ PAYMENT DISCOUNT MODELING (Myntra)
+            payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
+
+            best = best_price_by_payment_mode(
+                site="Myntra",
+                selling_price=selling_price,
+                payment_modes=PAYMENT_MODES_TO_TRY,
+                rules=PAYMENT_DISCOUNT_RULES,
+                allow_stacking=True
             )
 
-            price_per_gram = selling_price / weight
+            pay_now_price = best["pay_now_price"]
+            effective_price = best["effective_price"]
+            payment_discount_value = best["discount_value"]
+            payment_discount_rules = best["rules"]
+            best_payment_mode = best["payment_mode"]
+
+            discount_percent = self.price_calculator.calculate_discount_percentage(
+                effective_price, expected_price
+            )
+
+            price_per_gram = effective_price / weight
 
             landing_url = product.get('landingPageUrl', '') or ''
             if landing_url and not landing_url.startswith('http'):
@@ -486,11 +489,19 @@ price_per_gram = effective_price / weight
                 'purity': purity,
                 'product_type': product_type,
                 'is_jewellery': is_jewellery,
+
                 'selling_price': selling_price,
                 'original_price': original_price,
+                'pay_now_price': round(pay_now_price, 2),
+                'effective_price': round(effective_price, 2),
+                'payment_discount_value': round(payment_discount_value, 2),
+                'payment_discount_rules': payment_discount_rules,
+                'best_payment_mode': best_payment_mode,
+
                 'expected_price': round(expected_price, 2),
                 'discount_percent': discount_percent,
                 'price_per_gram': round(price_per_gram, 2),
+
                 'url': landing_url,
                 'image_url': product.get('searchImage', ''),
                 'brand': product.get('brandName', 'Unknown'),
