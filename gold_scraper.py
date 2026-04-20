@@ -71,14 +71,14 @@ class GoldScraper:
         # Set pincode cookie
         s.cookies.set(
             "mynt-ulc",
-            "pincode:384345|addressId:",
+            "pincode:501503|addressId:",
             domain=".myntra.com"
         )
         
         return s, base_headers
     
-    # def extract_purity_and_weight(self, title: str) -> Tuple[Optional[str], Optional[float]]:
-    #     """
+    # def extract_purity_and_weight(self, title: str) -> Tuple[Optional[str], Optional[float]]:         
+      title_lower = (title or "").lower()
     #     Extract purity and weight from product title
     #     Returns: (purity, weight_in_grams)
     #     """
@@ -97,27 +97,28 @@ class GoldScraper:
     #         if re.search(pattern, title_lower):
     #             purity = purity_value
     #             break
+
+# ✅ FIX: Handle titles like "3GMS (2gm+1gm)" correctly
+# Rule: if "(...+...)" exists, sum inside; if outside total exists, validate and prefer it.
+paren_total_pat = re.compile(r'(\d+(?:\.\d+)?)\s*(?:gms?|grams?)\s*\(([^)]*)\)', re.IGNORECASE)
+m = paren_total_pat.search(title_lower)
+
+if m:
+    outside_total = float(m.group(1))
+    inside_text = m.group(2)
+
+    # Extract all inside weights that have units (gm/gms/grams) and sum them
+    inside_weights = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*(?:gms?|grams?)\b', inside_text, flags=re.IGNORECASE)]
+    if inside_weights:
+        inside_sum = sum(inside_weights)
+        # If outside and inside match (within tolerance), use outside; else use inside sum
+        weight_in_grams = outside_total if abs(outside_total - inside_sum) <= 0.05 else inside_sum
+    else:
+        weight_in_grams = outside_total
+
+    return purity, round(weight_in_grams, 3)
         
-    #     # SPECIAL CASE 1: Handle parentheses with plus signs (like "4.5 Gm (0.5 Gm + 2 Gm + 2 Gm)")
-    #     # First, check if there's a weight outside parentheses and a sum inside parentheses
-    #     parentheses_pattern = r'(\d+\.?\d*)\s*gm?\s*\(([^)]+)\)'
-    #     parentheses_match = re.search(parentheses_pattern, title_lower)
-        
-    #     if parentheses_match:
-    #         # We have a pattern like "4.5 Gm (0.5 Gm + 2 Gm + 2 Gm)"
-    #         outside_weight = float(parentheses_match.group(1))
-    #         inside_content = parentheses_match.group(2)
-            
-    #         # Extract all weights from inside parentheses
-    #         inside_weights = re.findall(r'(\d+\.?\d*)\s*gm?', inside_content)
-    #         if inside_weights:
-    #             # Sum the inside weights
-    #             inside_sum = sum(float(w) for w in inside_weights)
-                
-    #             # If outside weight matches the sum, return the outside weight
-    #             if abs(outside_weight - inside_sum) < 0.01:
-    #                 return purity, outside_weight
-        
+          
     #     # SPECIAL CASE 2: Handle plus signs (these should ALWAYS be summed)
     #     if '+' in title_lower:
     #         parts = re.split(r'\s*\+\s*', title_lower)
