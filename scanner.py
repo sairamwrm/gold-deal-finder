@@ -1,12 +1,14 @@
 import os
+import re
 import asyncio
 from datetime import datetime
+
+import requests
 
 from gold_scraper import GoldScraper
 from telegram_bot import TelegramAlertBot
 
-from config import MIN_WEIGHT, MIN_DISCOUNT_PERCENTAGE, PAYMENT_MODES_ALLOWED
-from price_calculator import is_real_deal
+from config import MIN_WEIGHT, MIN_DISCOUNT_PERCENTAGE, PAYMENT_MODES_ALLOWED, PURITY_MAPPING, GOODRETURNS_CITY
 
 
 def _to_float(x, default=0.0):
@@ -14,6 +16,60 @@ def _to_float(x, default=0.0):
         return float(x)
     except Exception:
         return default
+
+
+def _purity_factor(purity: str) -> float:
+    if not purity:
+        return 0.999
+    p = str(purity).upper().strip()
+    if p in PURITY_MAPPING:
+        return float(PURITY_MAPPING[p])
+    if p.isdigit():
+        n = float(p)
+        if n > 10:  # 999/995/916
+            return n / 1000.0
+    if p.endswith("K"):
+        try:
+            return float(p.replace("K", "")) / 24.0
+        except Exception:
+            return 0.999
+    return 0.999
+
+
+def fetch_goodreturns_24k_per_gram(city: str) -> float:
+    """
+    Scrapes Goodreturns city page and returns 24K Gold /g as float.
+    Fallback: env GOODRETURNS_24K_PRICE if scraping fails.
+    """
+    fallback = _to_float(os.getenv("GOODRETURNS_24K_PRICE", "0"), 0.0)
+
+    city = (city or "hyderabad").lower().strip()
+    url = f"https://www.goodreturns.in/gold-rates/{city}.html"
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,application/xhtml+xml"
+        }
+        html = requests.get(url, headers=headers, timeout=20).text
+
+        # Typical Goodreturns snippet includes: "24K Gold /g ₹15,246"
+        # We capture the ₹ value
+        m = re.search(r"24K\s+Gold\s*/g\s*₹\s*([0-9,]+)", html, re.IGNORECASE)
+        if not m:
+            # Some pages may have spacing variants
+            m = re.search(r"24K\s*Gold\s*/g\s*₹\s*([0-9,]+)", html, re.IGNORECASE)
+
+        if m:
+            val = float(m.group(1).replace(",", ""))
+            if val > 0:
+                return val
+
+        # If parsing fails, fallback
+        return fallback
+
+    except Exception:
+        return fallback
 
 
 async def main():
@@ -24,6 +80,15 @@ async def main():
     print(f"Time: {datetime.utcnow().ctime()}")
     print(f"Test Run: {test_run}")
     print(f"Force Scan: {force_scan}")
+
+    # ✅ Live Goodreturns reference (24K per gram)
+    goodreturns_24k = fetch_goodreturns_24k_per_gram(GOODRETURNS_CITY)
+    if goodreturns_24k <= 0:
+        # Hard stop: if we cannot get reference, don't spam wrong alerts
+        print("❌ Goodreturns reference not available. Set env GOODRETURNS_24K_PRICE.")
+        return
+
+    print(f"✅ Goodreturns 24K reference (₹/g): {goodreturns_24k}")
 
     scraper = GoldScraper()
     bot = TelegramAlertBot()
@@ -43,61 +108,46 @@ async def main():
 
         selling_price = _to_float(p.get("selling_price"), 0.0)
         effective_price = _to_float(p.get("effective_price"), selling_price)
-
-        purity = p.get("purity") or "999"
-
-        # making/gst from your expected price info (if present)
-        making_pct = _to_float(p.get("making_charges_percent"), 0.0)
-        gst_pct = _to_float(p.get("gst_percent"), 3.0)
-
-        # ✅ Goodreturns anchored real-deal test (this is the ONLY truth)
-        deal = is_real_deal(
-            total_price=effective_price,
-            weight_grams=weight,
-            purity=purity,
-            making_charges_percent=making_pct,
-            gst_percent=gst_pct,
-        )
-
-        if not deal.get("is_deal"):
+        if effective_price <= 0:
             continue
 
-        # ------------------------------------------------------------
-        # ✅ FORCE "Expected Value" + "Discount %" to be Goodreturns-based
-        # This eliminates random Discount values coming from old API logic.
-        # ------------------------------------------------------------
-        fair_pg = deal.get("fair_price_per_gram")
-        eff_pg = deal.get("effective_price_per_gram")
+        purity = p.get("purity") or "999"
+        pf = _purity_factor(purity)
 
-        if fair_pg and eff_pg and weight > 0:
-            fair_total = float(fair_pg) * float(weight)
+        # ✅ Only reference: Goodreturns 24K adjusted to product purity
+        ref_pg = goodreturns_24k * pf
+        eff_pg = effective_price / weight
 
-            # overwrite fields used by telegram_bot formatting
-            p["expected_price"] = round(fair_total, 2)  # Expected Value becomes Goodreturns fair total
-            p["effective_price"] = round(float(effective_price), 2)
-            p["price_per_gram"] = round(float(eff_pg), 2)
+        # ✅ Deal rule: effective <= reference (no GST, no making)
+        is_deal = eff_pg <= ref_pg
 
-            # discount is now: how much below Goodreturns fair value
-            goodreturns_discount_pct = ((fair_total - float(effective_price)) / fair_total) * 100.0
-            p["discount_percent"] = round(goodreturns_discount_pct, 2)
+        if not is_deal:
+            continue
 
-            # extra clarity fields (optional)
-            p["goodreturns_fair_price_per_gram"] = round(float(fair_pg), 2)
-            p["effective_price_per_gram"] = round(float(eff_pg), 2)
-            p["goodreturns_24k_price"] = deal.get("goodreturns_24k_price")
+        # ✅ Discount% ONLY vs Goodreturns reference (purity-adjusted)
+        discount_pct = ((ref_pg - eff_pg) / ref_pg) * 100.0 if ref_pg > 0 else 0.0
 
-        # ✅ Optional secondary threshold:
-        # MIN_DISCOUNT_PERCENTAGE now applies to Goodreturns-based discount_percent
-        if _to_float(p.get("discount_percent"), 0.0) >= MIN_DISCOUNT_PERCENTAGE:
+        # Overwrite fields used by telegram formatting so nothing random can appear
+        p["goodreturns_24k_price"] = round(goodreturns_24k, 2)
+        p["goodreturns_fair_price_per_gram"] = round(ref_pg, 2)      # fair = reference only
+        p["effective_price_per_gram"] = round(eff_pg, 2)
+
+        # Make telegram show “Expected Value” as reference total (no GST/making)
+        expected_total = ref_pg * weight
+        p["expected_price"] = round(expected_total, 2)
+
+        # IMPORTANT: overwrite discount_percent so old logic cannot leak in
+        p["discount_percent"] = round(discount_pct, 2)
+
+        # Optional filter: apply your threshold on THIS Goodreturns-based discount%
+        if p["discount_percent"] >= MIN_DISCOUNT_PERCENTAGE:
             deals.append(p)
 
-    # Best deals first: biggest margin below fair value (more negative is better)
-    def margin_below_fair(item):
-        eff = _to_float(item.get("effective_price_per_gram"), 10**12)
-        fair = _to_float(item.get("goodreturns_fair_price_per_gram"), 10**12)
-        return eff - fair
+    # Best deals first: most below reference (more negative is better)
+    def margin(item):
+        return _to_float(item.get("effective_price_per_gram"), 1e12) - _to_float(item.get("goodreturns_fair_price_per_gram"), 1e12)
 
-    deals.sort(key=margin_below_fair)
+    deals.sort(key=margin)
 
     if test_run:
         print(f"TEST RUN: Found {len(deals)} deals")
