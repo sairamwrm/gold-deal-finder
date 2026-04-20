@@ -9,6 +9,8 @@ from config import AJIO_API_URL, SEARCH_PARAMS, REQUEST_DELAY
 from price_calculator import GoldPriceCalculator
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from payment_discounts import apply_payment_discounts, best_price_by_payment_mode
+from config import PAYMENT_DISCOUNT_RULES, PAYMENT_MODES_TO_TRY, DEFAULT_PAYMENT_MODE
 
 
 _EXCLUDE_PATTERNS = [
@@ -301,13 +303,30 @@ class GoldScraper:
             )
             expected_price = expected_price_info['total_expected']
 
-            # Calculate discount
-            discount_percent = self.price_calculator.calculate_discount_percentage(
-                selling_price, expected_price
-            )
+            # --- Apply payment discount modeling ---
+payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
 
-            # Calculate price per gram
-            price_per_gram = selling_price / weight
+best = best_price_by_payment_mode(
+    site="AJIO",
+    selling_price=selling_price,
+    payment_modes=PAYMENT_MODES_TO_TRY,
+    rules=PAYMENT_DISCOUNT_RULES,
+    allow_stacking=True
+)
+
+pay_now_price = best["pay_now_price"]
+effective_price = best["effective_price"]
+payment_discount_value = best["discount_value"]
+payment_rules = best["rules"]
+best_payment_mode = best["payment_mode"]
+
+# Calculate discount using effective price
+discount_percent = self.price_calculator.calculate_discount_percentage(
+    effective_price, expected_price
+)
+
+# Price per gram should also use effective price (what it really costs)
+price_per_gram = effective_price / weight
 
             return {
                 'source': 'AJIO',
