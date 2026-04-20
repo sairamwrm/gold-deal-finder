@@ -1,17 +1,17 @@
 import os
 
+# ---------------- BASIC FILTERS (scanner.py imports these) ----------------
+MIN_DISCOUNT_PERCENTAGE = float(os.getenv("MIN_DISCOUNT_PERCENTAGE", "5"))
+MIN_WEIGHT = float(os.getenv("MIN_WEIGHT", "0.3"))
+
 # ---------------- TELEGRAM ----------------
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# ---------------- TAX & PURITY (REQUIRED by price_calculator.py) ----------------
-# IMPORTANT: Your price_calculator uses GST_RATE/100 so GST_RATE must be 3, not 0.03
+# ---------------- TAX & PURITY (price_calculator.py imports these) ----------------
+# IMPORTANT: your price_calculator uses GST_RATE/100, so GST_RATE must be 3 (not 0.03)
 GST_RATE = float(os.getenv("GST_RATE", "3.0"))
 
-MIN_DISCOUNT_PERCENTAGE = float(os.getenv("MIN_DISCOUNT_PERCENTAGE", "5"))
-MIN_WEIGHT = float(os.getenv("MIN_WEIGHT", "0.3"))
-
-# Used by price_calculator.calculate_expected_price()
 PURITY_MAPPING = {
     "24K": 0.999,
     "999": 0.999,
@@ -27,10 +27,8 @@ PURITY_MAPPING = {
 # ---------------- SCRAPER SETTINGS ----------------
 REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.6"))
 
-# AJIO API URL (keep if your previous one worked)
 AJIO_API_URL = os.getenv("AJIO_API_URL", "https://www.ajio.com/api/search")
 
-# Search params used by gold_scraper.py
 SEARCH_PARAMS = {
     "ajio": {
         "query": "gold",
