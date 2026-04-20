@@ -1,125 +1,169 @@
-# =====================================================================
-# Goodreturns Anchored "Real Deal" Check
-# (Append-only block – safe to paste at end of price_calculator.py)
-# =====================================================================
+import json
+import time
+import requests
 import os
+import fcntl
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, Optional
+import logging
+import threading
+from functools import lru_cache
 
-def _purity_factor_from_string(purity: str) -> float:
-    """
-    Supports: '24K','22K','18K','14K','999','995','916','750','585'
-    Falls back to 0.999 if unknown.
-    """
-    if purity is None:
-        return 0.999
-    p = str(purity).upper().strip()
+from config import GST_RATE, PURITY_MAPPING, GOODRETURNS_24K_PRICE, GOODRETURNS_TOLERANCE_PCT
 
-    try:
-        # PURITY_MAPPING is imported in your file from config
-        if p in PURITY_MAPPING:
-            return float(PURITY_MAPPING[p])
-    except Exception:
-        pass
-
-    if p.isdigit():
-        n = float(p)
-        if n > 10:  # 999 / 995 / 916...
-            return n / 1000.0
-
-    if p.endswith("K"):
-        try:
-            k = float(p.replace("K", ""))
-            return k / 24.0
-        except Exception:
-            pass
-
-    return 0.999
+logger = logging.getLogger(__name__)
 
 
-def _pct_to_fraction(x, default=0.0) -> float:
-    """
-    Accepts 4 or 0.04. Returns fraction 0.04.
-    """
-    try:
-        v = float(x)
-    except Exception:
-        return float(default)
-    return v / 100.0 if v > 1.0 else v
+class GoldPriceCalculator:
+    _instance = None
+    _lock = threading.Lock()
 
+    def __new__(cls):
+        # Singleton pattern to ensure only one instance exists
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+            return cls._instance
 
-def is_real_deal(
-    total_price: float,
-    weight_grams: float,
-    purity: str,
-    making_charges_percent: float = 0.0,
-    gst_percent: float = None,
-    goodreturns_24k_price: float = None,
-    tolerance_pct: float = None
-) -> dict:
-    """
-    Real deal check anchored to Goodreturns 24K price:
+    def __init__(self):
+        if hasattr(self, "_initialized"):
+            return
 
-      effective ₹/g <= fair ₹/g
+        # Multiple API endpoints for redundancy
+        self.API_ENDPOINTS = [
+            {
+                "name": "myb-be",
+                "url": "https://myb-be.onrender.com/api/rates",
+                "parser": self._parse_myb_response,
+            },
+            {
+                "name": "goldprice.org",
+                "url": "https://data-asg.goldprice.org/dbXRates/INR",
+                "parser": self._parse_goldprice_response,
+            },
+        ]
 
-    fair ₹/g = (Goodreturns24K ₹/g × purity_factor) × (1 + making + gst) × (1 + tolerance)
+        self.CACHE_FILE = Path("bullion_cache.json")
+        self.CACHE_TTL = 300  # 5 minutes
+        self._last_api_call = 0
+        self._cache_lock = threading.Lock()
+        self._min_api_interval = 2
 
-    Returns dict with computed values.
-    """
-    if not weight_grams or float(weight_grams) <= 0:
-        return {
-            "is_deal": False,
-            "effective_price_per_gram": None,
-            "fair_price_per_gram": None,
-            "goodreturns_24k_price": None
+        # Constants
+        self.OZ_TO_GRAM = 31.1035
+        self.LANDED_MULTIPLIER = 1.11
+        self.RETAIL_SPREAD = 700     # for 10g
+        self.RTGS_DISCOUNT = 600     # for 10g
+        self.JEWELLERY_PREMIUM_22K = 1200  # for 10g
+
+        # Making charges (fractions)
+        self.MAKING_CHARGES = {
+            "coin_24K": 0.00,
+            "coin_22K": 0.00,
+            "coin_995": 0.00,
+            "coin_999": 0.00,
+
+            "jewellery_24K": 0.00,
+            "jewellery_22K": 0.00,
+            "jewellery_18K": 0.00,
+            "jewellery_14K": 0.00,
         }
 
-    eff_pg = float(total_price) / float(weight_grams)
+        self._initialized = True
 
-    # Get config values safely
-    if goodreturns_24k_price is None:
-        try:
-            from config import GOODRETURNS_24K_PRICE
-            goodreturns_24k_price = float(GOODRETURNS_24K_PRICE)
-        except Exception:
-            goodreturns_24k_price = float(os.getenv("GOODRETURNS_24K_PRICE", "0") or 0)
+    # ---------------- API Parsers ----------------
 
-    if tolerance_pct is None:
-        try:
-            from config import GOODRETURNS_TOLERANCE_PCT
-            tolerance_pct = float(GOODRETURNS_TOLERANCE_PCT)
-        except Exception:
-            tolerance_pct = 0.0
+    def _parse_myb_response(self, response_data: Dict) -> Dict:
+        """
+        Parse response from myb-be API and return normalized data.
+        NOTE: myb-be seems to provide GST-inclusive values already in some fields.
+        """
+        spot = response_data["spot"]
+        gold_products = response_data["goldProducts"]
+        silver_products = response_data["silverProducts"]
+        gold_by_karat = response_data["goldByKarat"]
 
-    if not goodreturns_24k_price or goodreturns_24k_price <= 0:
-        # Do NOT claim a deal if reference price isn't configured
-        return {
-            "is_deal": False,
-            "effective_price_per_gram": round(eff_pg, 2),
-            "fair_price_per_gram": None,
-            "goodreturns_24k_price": None
+        gold_per_gram = float(gold_products["retail999"]) / 10.0
+
+        output = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "live_api",
+            "spot_price_per_gram": round(gold_per_gram, 2),
+            "gold": {
+                "spot_10g": round(float(spot["gldInr"]), 2),
+                "retail_999_10g": round(float(gold_products["retail999"]), 2),
+                "rtgs_999_10g": round(float(gold_products["rtgs999"]), 2),
+                "999_with_gst_10g": round(float(gold_products["withGst999"]), 2),
+                "retail_22k_10g": round(float(gold_by_karat["22K"]), 2),
+                "retail_22k_with_gst_10g": round(float(gold_by_karat["22K"]) * (1 + GST_RATE / 100), 2),
+                "per_gram": {
+                    "999_spot": round(float(spot["gldInr"]) / 10, 2),
+                    "999_landed": round(float(gold_products["withGst999"]) / 10, 2),
+                    "22k_spot": round(float(gold_by_karat["22K"]) / 10, 2),
+                    "22k_landed": round(float(gold_by_karat["22K"]) / 10, 2),
+                },
+            },
+            "silver": {
+                "per_gram": round(float(silver_products["retail999"]) / 1000, 2),
+                "per_kg": round(float(silver_products["retail999"]), 2),
+            },
+            "raw_api_response": response_data,
         }
 
-    purity_factor = _purity_factor_from_string(purity)
+        logger.info("Successfully parsed myb-be response")
+        return output
 
-    making_frac = _pct_to_fraction(making_charges_percent, 0.0)
+    def _parse_goldprice_response(self, response_data: Dict) -> Dict:
+        """
+        Parse response from goldprice.org and calculate all derived prices.
+        """
+        item = response_data["items"][0]
+        xau = float(item["xauPrice"])  # INR per troy ounce
+        xag = float(item["xagPrice"])
 
-    if gst_percent is None:
+        gold_per_gram = xau / self.OZ_TO_GRAM
+        silver_per_gram = xag / self.OZ_TO_GRAM
+
+        spot_10g = gold_per_gram * 10
+        landed_10g = spot_10g * self.LANDED_MULTIPLIER
+
+        retail_999 = landed_10g + self.RETAIL_SPREAD
+        rtgs_999 = landed_10g - self.RTGS_DISCOUNT
+        gst_999 = rtgs_999
+
+        base_22k = landed_10g * 0.9167
+        retail_22k = base_22k + self.JEWELLERY_PREMIUM_22K
+        retail_22k_gst = retail_22k * (1 + GST_RATE / 100)
+
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "source": "live_api",
+            "spot_price_per_gram": round(gold_per_gram, 2),
+            "gold": {
+                "spot_10g": round(spot_10g, 2),
+                "retail_999_10g": round(retail_999, 2),
+                "rtgs_999_10g": round(rtgs_999, 2),
+                "999_with_gst_10g": round(gst_999, 2),
+                "retail_22k_10g": round(retail_22k, 2),
+                "retail_22k_with_gst_10g": round(retail_22k_gst, 2),
+                "per_gram": {
+                    "999_spot": round(gold_per_gram, 2),
+                    "999_landed": round(gold_per_gram * self.LANDED_MULTIPLIER, 2),
+                    "22k_spot": round(gold_per_gram * 0.9167, 2),
+                    "22k_landed": round((gold_per_gram * 0.9167) * self.LANDED_MULTIPLIER, 2),
+                },
+            },
+            "silver": {
+                "per_gram": round(silver_per_gram, 2),
+                "per_kg": round(silver_per_gram * 1000, 2),
+            },
+        }
+
+    # ---------------- Cache helpers ----------------
+
+    def _read_cache_safe(self) -> Optional[Dict]:
+        if not self.CACHE_FILE.exists():
+            return None
         try:
-            gst_percent = float(GST_RATE)  # GST_RATE in your code is percent like 3.0
-        except Exception:
-            gst_percent = 3.0
-    gst_frac = _pct_to_fraction(gst_percent, 0.03)
-
-    base_pg = float(goodreturns_24k_price) * purity_factor
-    fair_pg = base_pg * (1.0 + making_frac + gst_frac)
-    fair_pg = fair_pg * (1.0 + float(tolerance_pct))
-
-    return {
-        "is_deal": eff_pg <= fair_pg,
-        "effective_price_per_gram": round(eff_pg, 2),
-        "fair_price_per_gram": round(fair_pg, 2),
-        "goodreturns_24k_price": round(float(goodreturns_24k_price), 2),
-        "purity_factor": round(float(purity_factor), 6),
-        "making_frac": round(float(making_frac), 6),
-        "gst_frac": round(float(gst_frac), 6),
-        "tolerance_pct": round(float(tolerance_pct), 6),
-    }
+            with open(self.CACHE_FILE, "r") as f:
