@@ -1,15 +1,8 @@
 name: Gold Deal Scanner
 
 on:
-  # ✅ scheduled trigger (GitHub minimum is 5 minutes)
   schedule:
-    - cron: "*/5 * * * *"
-
-  # ✅ TEMPORARY: push trigger to prove the workflow is active on main
-  # Remove this block after you see at least 1 scheduled run working.
-  push:
-    branches:
-      - main
+    - cron: "*/5 * * * *"   # every 5 minutes (UTC)
 
 permissions:
   contents: read
@@ -27,13 +20,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show trigger (must say schedule for scheduled runs)
-        run: echo "Triggered by: ${{ github.event_name }} Ref: ${{ github.ref }}"
+      - name: Show trigger
+        run: |
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
 
-      - name: Ensure workflow is enabled warning check
-        run: echo "If scheduled workflows were disabled (fork/inactivity), re-enable in Actions UI."
-
-      - name: Restore scanner state
+      - name: Restore scanner state (dedup + last-known reference)
         uses: actions/cache@v4
         with:
           path: .scanner_state.json
@@ -46,27 +38,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run scanner
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GOODRETURNS_CITY: "hyderabad"
-          PAYMENT_MODES_ALLOWED: ""
-          MIN_WEIGHT: "0.3"
-          MIN_DISCOUNT_PERCENTAGE: "0"
-          FORCE_SCAN: "false"
-          TEST_RUN: "false"
-        run: python scanner.py
-
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        with:
-          name: scan-results
-          path: |
-            scan_summary.json
-            .scanner_state.json
