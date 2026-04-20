@@ -8,6 +8,9 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # IMPORTANT: Your price_calculator uses GST_RATE/100 so GST_RATE must be 3, not 0.03
 GST_RATE = float(os.getenv("GST_RATE", "3.0"))
 
+MIN_DISCOUNT_PERCENTAGE = float(os.getenv("MIN_DISCOUNT_PERCENTAGE", "5"))
+MIN_WEIGHT = float(os.getenv("MIN_WEIGHT", "0.3"))
+
 # Used by price_calculator.calculate_expected_price()
 PURITY_MAPPING = {
     "24K": 0.999,
