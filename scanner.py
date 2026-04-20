@@ -3,7 +3,6 @@ from pathlib import Path
 import requests
 import re
 from price_calculator import GoldPriceCalculator
-from datetime import datetime
 import datetime
 
 STATE_PATH = Path(".scanner_state.json")
@@ -92,7 +91,7 @@ def fetch_reference_24k_per_gram(city: str, force_refresh: bool = False):
 import json
 
 Path("scan_summary.json").write_text(json.dumps({
-    "time_utc": datetime.utcnow().isoformat(),
+    "time_utc": datetime.datetime.utcnow().isoformat(),
     "total_products": len(products),
     "deals_found": len(deals)
 }, indent=2), encoding="utf-8")
