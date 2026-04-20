@@ -8,13 +8,6 @@ def apply_payment_discounts(
     rules: List[Dict],
     allow_stacking: bool = True
 ) -> Tuple[float, float, float, str]:
-    """
-    Returns:
-      pay_now_price: after instant discounts
-      effective_price: after cashback discounts too (if modeled)
-      total_discount_value: total discount value
-      applied_rules: comma-separated rule names or "NONE"
-    """
     pay_now = float(selling_price)
     effective = float(selling_price)
     discount_total = 0.0
