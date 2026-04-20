@@ -346,3 +346,137 @@ class GoldPriceCalculator:
         ref = self.get_goodreturns_24k_per_gram()
         ref_txt = f"Goodreturns 24K ref: ₹{ref:,.0f}/g" if ref else "Goodreturns ref: N/A"
         return f"📌 {ref_txt}\nAPI 999 landed: ₹{gold.get('999_landed', 0):,.0f}/g"
+
+# ---------------- REAL DEAL CHECK (Goodreturns anchored) ----------------
+import os
+
+def _purity_factor_from_string(purity: str) -> float:
+    """
+    Supports: '24K','22K','18K','14K','999','995','916','750','585'
+    Falls back to 0.999 if unknown.
+    """
+    if purity is None:
+        return 0.999
+    p = str(purity).upper().strip()
+
+    # If PURITY_MAPPING exists in this module (it does in your file via config import)
+    try:
+        if p in PURITY_MAPPING:
+            return float(PURITY_MAPPING[p])
+    except Exception:
+        pass
+
+    # Numeric purity like 999 / 995 / 916
+    if p.isdigit():
+        n = float(p)
+        if n > 10:  # 999/995/916 etc
+            return n / 1000.0
+
+    # Karat strings
+    if p.endswith("K"):
+        try:
+            k = float(p.replace("K", ""))
+            return k / 24.0
+        except Exception:
+            pass
+
+    return 0.999
+
+
+def _normalize_pct(x, default=0.0) -> float:
+    """
+    Accepts 4 or 0.04. Returns fraction: 0.04
+    """
+    try:
+        v = float(x)
+    except Exception:
+        return float(default)
+    if v > 1.0:
+        return v / 100.0
+    return v
+
+
+def is_real_deal(
+    total_price: float,
+    weight_grams: float,
+    purity: str,
+    making_charges_percent: float = 0.0,
+    gst_percent: float = None,
+    goodreturns_24k_price: float = None,
+) -> dict:
+    """
+    Returns a dict:
+      {
+        'is_deal': bool,
+        'effective_price_per_gram': float,
+        'fair_price_per_gram': float,
+        'goodreturns_24k_price': float,
+        'purity_factor': float,
+        'making_pct': float,
+        'gst_pct': float
+      }
+
+    Logic:
+      effective ₹/g <= (Goodreturns24K ₹/g * purity_factor) * (1 + making + gst)
+    """
+
+    # Validate
+    if not weight_grams or float(weight_grams) <= 0:
+        return {
+            "is_deal": False,
+            "effective_price_per_gram": None,
+            "fair_price_per_gram": None,
+            "goodreturns_24k_price": None,
+            "purity_factor": None,
+            "making_pct": None,
+            "gst_pct": None
+        }
+
+    eff_pg = float(total_price) / float(weight_grams)
+
+    # Get Goodreturns reference (priority: arg -> config -> env -> fallback)
+    if goodreturns_24k_price is None:
+        try:
+            from config import GOODRETURNS_24K_PRICE
+            goodreturns_24k_price = float(GOODRETURNS_24K_PRICE)
+        except Exception:
+            goodreturns_24k_price = float(os.getenv("GOODRETURNS_24K_PRICE", "0") or 0)
+
+    if not goodreturns_24k_price or goodreturns_24k_price <= 0:
+        # If Goodreturns not set, do NOT label as deal (prevents fake alerts)
+        return {
+            "is_deal": False,
+            "effective_price_per_gram": round(eff_pg, 2),
+            "fair_price_per_gram": None,
+            "goodreturns_24k_price": None,
+            "purity_factor": _purity_factor_from_string(purity),
+            "making_pct": _normalize_pct(making_charges_percent, 0.0),
+            "gst_pct": None
+        }
+
+    purity_factor = _purity_factor_from_string(purity)
+
+    making_pct = _normalize_pct(making_charges_percent, 0.0)
+
+    # gst_percent: if not provided, use GST_RATE from config import in this file.
+    if gst_percent is None:
+        try:
+            gst_percent = float(GST_RATE)  # in your code GST_RATE is like 3 (percent)
+        except Exception:
+            gst_percent = 3.0
+
+    gst_pct = _normalize_pct(gst_percent, 0.03)  # 3 => 0.03
+
+    # Fair price per gram based on Goodreturns
+    base_pg = float(goodreturns_24k_price) * float(purity_factor)
+    fair_pg = base_pg * (1.0 + making_pct + gst_pct)
+
+    return {
+        "is_deal": eff_pg <= fair_pg,
+        "effective_price_per_gram": round(eff_pg, 2),
+        "fair_price_per_gram": round(fair_pg, 2),
+        "goodreturns_24k_price": round(float(goodreturns_24k_price), 2),
+        "purity_factor": round(float(purity_factor), 6),
+        "making_pct": round(float(making_pct), 6),
+        "gst_pct": round(float(gst_pct), 6),
+    }
