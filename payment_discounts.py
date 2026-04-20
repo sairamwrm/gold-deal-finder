@@ -10,10 +10,10 @@ def apply_payment_discounts(
 ) -> Tuple[float, float, float, str]:
     """
     Returns:
-      pay_now_price: float        -> after instant discounts
-      effective_price: float      -> after cashback discounts too (if modeled)
-      total_discount_value: float -> total discount applied
-      applied_rules: str          -> comma-separated rule names or "NONE"
+      pay_now_price: after instant discounts
+      effective_price: after cashback discounts too (if modeled)
+      total_discount_value: total discount value
+      applied_rules: comma-separated rule names or "NONE"
     """
     pay_now = float(selling_price)
     effective = float(selling_price)
@@ -69,9 +69,6 @@ def best_price_by_payment_mode(
     rules: List[Dict],
     allow_stacking: bool = True
 ) -> Dict:
-    """
-    Try multiple payment modes and return the best effective price.
-    """
     best = {
         "payment_mode": None,
         "pay_now_price": float(selling_price),
