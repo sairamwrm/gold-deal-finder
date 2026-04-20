@@ -1,37 +1,54 @@
-from price_calculator import (
-    calculate_effective_price_per_gram,
-    is_real_deal
-)
+from price_calculator import is_real_deal
 from config import PAYMENT_MODES_ALLOWED
-from notifier import send_telegram_alert
+from telegram_bot import send_telegram_message
 
 
 def process_product(product):
     """
-    product = {
-        name, price, weight, purity, making_pct, payment_mode, url
+    product dict MUST contain:
+    {
+        "name": str,
+        "price": float,      # final payable price
+        "weight": float,     # grams
+        "purity": str,       # "999", "995", "916"
+        "making_pct": float, # 0.04 for 4%
+        "payment_mode": str,
+        "url": str
     }
     """
 
+    # 1️⃣ Ignore unwanted payment modes
     if product["payment_mode"] not in PAYMENT_MODES_ALLOWED:
         return
 
-    eff_pg = calculate_effective_price_per_gram(
-        product["price"],
-        product["weight"]
-    )
-
-    is_deal, fair_pg = is_real_deal(
-        eff_pg,
-        product["purity"],
-        product["making_pct"]
+    # 2️⃣ Check real deal vs Goodreturns
+    is_deal, eff_pg, fair_pg = is_real_deal(
+        total_price=product["price"],
+        weight=product["weight"],
+        purity=product["purity"],
+        making_pct=product["making_pct"],
     )
 
     if not is_deal:
         return
 
-    send_telegram_alert(
-        product=product,
-        eff_pg=eff_pg,
-        fair_pg=fair_pg
+    # 3️⃣ Send alert (ONLY REAL DEALS)
+    send_telegram_message(
+        f"""
+💰 *REAL GOLD DEAL FOUND*
+
+🪙 {product['name']}
+⚖️ {product['weight']} g | Purity: {product['purity']}
+💳 Payment: {product['payment_mode']}
+
+💰 Total Price: ₹{product['price']}
+
+📉 Effective: ₹{eff_pg}/g
+📊 Fair (Goodreturns): ₹{fair_pg}/g
+
+✅ *BELOW FAIR VALUE*
+
+🔗 {product['url']}
+""".strip()
     )
+``
