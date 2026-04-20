@@ -14,7 +14,10 @@ from config import MIN_WEIGHT, MIN_DISCOUNT_PERCENTAGE, PAYMENT_MODES_ALLOWED, G
 
 STATE_PATH = Path(".scanner_state.json")
 
-
+for i in range(5):
+    run_scan_once()
+    if i < 4:
+        time.sleep(60)
 def _to_float(x, default=0.0):
     try:
         return float(x)
