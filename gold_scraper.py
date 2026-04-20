@@ -32,7 +32,6 @@ _EXCLUDE_RE = re.compile('|'.join(_EXCLUDE_PATTERNS), re.IGNORECASE)
 
 
 def is_real_gold_product(title: str) -> bool:
-    """Return False for gold-plated / fashion / non-coin products."""
     return not bool(_EXCLUDE_RE.search(title or ""))
 
 
@@ -54,9 +53,7 @@ class GoldScraper:
         }
 
     def create_myntra_session(self):
-        """Create and prepare a session for Myntra with proper cookies"""
         s = requests.Session()
-
         base_headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -65,31 +62,20 @@ class GoldScraper:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Connection": "keep-alive",
         }
-
-        # First visit to generate cookies
         s.get("https://www.myntra.com", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
-
-        # Visit gold coins page
         s.get("https://www.myntra.com/gold-coin", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
-
-        # Set pincode cookie (optional)
         s.cookies.set("mynt-ulc", "pincode:501503|addressId:", domain=".myntra.com")
         return s, base_headers
 
     def extract_purity_and_weight(self, title: str) -> Tuple[Optional[str], Optional[float]]:
-        """
-        Extract purity and weight from a gold product title.
-        Returns: (purity, weight_in_grams)
-        """
         title = title or ""
         title_lower = title.lower()
 
         if not is_real_gold_product(title):
             return None, None
 
-        # PURITY
         purity = None
         purity_patterns = [
             (r'24\s*kt|24\s*karat|\b999\b|24k', '24K'),
@@ -103,13 +89,11 @@ class GoldScraper:
                 purity = purity_value
                 break
 
-        # WEIGHT
         PURITY_NUMBERS = {24, 22, 18, 14, 999, 916, 750, 585, 995}
 
         def is_valid_weight(n: float) -> bool:
             return n not in PURITY_NUMBERS and 0.001 <= n <= 10_000
 
-        # Case 1: "3GMS (2gm+1gm)" or "4.5gm (0.5gm + 2gm + 2gm)"
         paren_total_pat = re.compile(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b\s*\(([^)]+)\)', re.IGNORECASE)
         m = paren_total_pat.search(title_lower)
         if m:
@@ -121,11 +105,9 @@ class GoldScraper:
                 weight_in_grams = outside_total if abs(outside_total - inside_sum) <= 0.05 else inside_sum
             else:
                 weight_in_grams = outside_total
-
             if is_valid_weight(weight_in_grams):
                 return purity, round(weight_in_grams, 3)
 
-        # Case 2: plus sums like "0.5gm + 2gm + 2gm"
         if '+' in title_lower:
             inside_parentheses = re.search(r'\(([^)]*\+[^)]*)\)', title_lower)
             if inside_parentheses:
@@ -134,26 +116,13 @@ class GoldScraper:
                 plus_weights = [w for w in plus_weights if is_valid_weight(w)]
                 if plus_weights:
                     return purity, round(sum(plus_weights), 3)
-            else:
-                parts = re.split(r'\s*\+\s*', title_lower)
-                plus_weights = []
-                for part in parts:
-                    mm = re.search(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', part, flags=re.IGNORECASE)
-                    if mm:
-                        w = float(mm.group(1))
-                        if is_valid_weight(w):
-                            plus_weights.append(w)
-                if plus_weights:
-                    return purity, round(sum(plus_weights), 3)
 
-        # Case 3: hyphen before weight
         hyphen_match = re.search(r'-\s*(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', title_lower, flags=re.IGNORECASE)
         if hyphen_match:
             w = float(hyphen_match.group(1))
             if is_valid_weight(w):
                 return purity, round(w, 3)
 
-        # Case 4: mg
         mg_match = re.search(r'(\d+(?:\.\d+)?)\s*mg\b', title_lower, flags=re.IGNORECASE)
         if mg_match:
             w_mg = float(mg_match.group(1))
@@ -161,7 +130,6 @@ class GoldScraper:
             if is_valid_weight(grams):
                 return purity, round(grams, 6)
 
-        # Case 5: general patterns
         weight_patterns = [
             r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
             r'(\d+(?:\.\d+)?)\s*g(?!\w)',
@@ -206,19 +174,21 @@ class GoldScraper:
             params['currentPage'] = page
 
             try:
-                r = requests.get(AJIO_API_URL, params=params, headers=self.ajio_headers, timeout=15)
+                r = requests.get(AJIO_API_URL, params=params, headers=self.ajio_headers, timeout=10)
                 if r.status_code != 200:
-                    print(f"AJIO page {page} failed with status {r.status_code}")
                     return []
 
                 data = r.json()
                 page_products = []
+
                 for p in data.get("products", []):
                     parsed = self._parse_ajio_product(p)
                     if parsed:
                         page_products.append(parsed)
 
+                time.sleep(REQUEST_DELAY)
                 return page_products
+
             except Exception as e:
                 print(f"AJIO page {page} error: {e}")
                 return []
@@ -232,7 +202,6 @@ class GoldScraper:
         return products
 
     def _parse_ajio_product(self, product: Dict) -> Optional[Dict]:
-        """Parse AJIO product data"""
         try:
             title = product.get('name', '') or ''
             description = product.get('description', '') or ''
@@ -247,7 +216,8 @@ class GoldScraper:
                 return None
 
             product_type = self.determine_product_type(title, description)
-            is_jewellery = (product_type == 'jewellery')
+            # IMPORTANT: price_calculator expects 'coin' or 'jewellery' string
+            calc_type = 'coin' if product_type == 'coin' else 'jewellery'
 
             price_data = product.get('price', {}) or {}
             selling_price2 = (price_data.get('value', 0) or 0)
@@ -255,16 +225,16 @@ class GoldScraper:
             offer_price = product.get('offerPrice', {}) or {}
             selling_price = (offer_price.get('value', 0) or 0)
             selling_price = selling_price if selling_price > 0 else selling_price2
+            selling_price = float(selling_price)
 
             if selling_price < 1000:
                 return None
 
-            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, is_jewellery)
+            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, calc_type)
             expected_price = expected_price_info['total_expected']
 
-            # --- PAYMENT DISCOUNT MODELING (AJIO) ---
+            # Payment discount modeling
             _ = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
-
             best = best_price_by_payment_mode(
                 site="AJIO",
                 selling_price=selling_price,
@@ -289,9 +259,9 @@ class GoldScraper:
                 'weight_grams': weight,
                 'purity': purity,
                 'product_type': product_type,
-                'is_jewellery': is_jewellery,
+                'is_jewellery': (product_type == 'jewellery'),
 
-                'selling_price': float(selling_price),
+                'selling_price': selling_price,
                 'pay_now_price': round(pay_now_price, 2),
                 'effective_price': round(effective_price, 2),
                 'payment_discount_value': round(payment_discount_value, 2),
@@ -305,10 +275,9 @@ class GoldScraper:
                 'url': f"https://www.ajio.com{product.get('url', '')}",
                 'image_url': product.get('images', [{}])[0].get('url', '') if product.get('images') else '',
                 'brand': product.get('fnlColorVariantData', {}).get('brandName', 'Unknown'),
-
-                'spot_price': expected_price_info['spot_price_per_gram'],
-                'making_charges_percent': expected_price_info['making_charges_percent'],
-                'gst_percent': expected_price_info['gst_percent'],
+                'spot_price': expected_price_info.get('spot_price_per_gram', 0),
+                'making_charges_percent': expected_price_info.get('making_charges_percent', 0),
+                'gst_percent': expected_price_info.get('gst_percent', 0),
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -323,7 +292,11 @@ class GoldScraper:
         def fetch_page(page: int):
             session, base_headers = self.create_myntra_session()
 
-            params = {"rows": 50, "o": (49 * (page - 1)) + 1, "pincode": "384315"}
+            params = {
+                "rows": 50,
+                "o": (49 * (page - 1)) + 1,
+                "pincode": "384315"
+            }
 
             api_headers = {
                 "User-Agent": base_headers["User-Agent"],
@@ -349,6 +322,8 @@ class GoldScraper:
                     parsed = self._parse_myntra_product(p)
                     if parsed:
                         page_products.append(parsed)
+
+                time.sleep(REQUEST_DELAY)
                 return page_products
 
             except Exception as e:
@@ -385,7 +360,6 @@ class GoldScraper:
             return 0.0, 0.0
 
     def _parse_myntra_product(self, product: Dict) -> Optional[Dict]:
-        """Parse Myntra product data with payment discount modeling"""
         try:
             title = product.get('productName', '') or ''
             if not title:
@@ -400,19 +374,17 @@ class GoldScraper:
                 return None
 
             product_type = self.determine_product_type(title)
-            is_jewellery = (product_type == 'jewellery')
+            calc_type = 'coin' if product_type == 'coin' else 'jewellery'
 
             price_data = product.get('price')
             selling_price, original_price = self._extract_myntra_price(price_data)
             if selling_price < 1000:
                 return None
 
-            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, is_jewellery)
+            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, calc_type)
             expected_price = expected_price_info['total_expected']
 
-            # --- PAYMENT DISCOUNT MODELING (Myntra) ---
             _ = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
-
             best = best_price_by_payment_mode(
                 site="Myntra",
                 selling_price=selling_price,
@@ -440,10 +412,11 @@ class GoldScraper:
                 'weight_grams': weight,
                 'purity': purity,
                 'product_type': product_type,
-                'is_jewellery': is_jewellery,
+                'is_jewellery': (product_type == 'jewellery'),
 
                 'selling_price': float(selling_price),
                 'original_price': float(original_price),
+
                 'pay_now_price': round(pay_now_price, 2),
                 'effective_price': round(effective_price, 2),
                 'payment_discount_value': round(payment_discount_value, 2),
@@ -457,10 +430,9 @@ class GoldScraper:
                 'url': landing_url,
                 'image_url': product.get('searchImage', ''),
                 'brand': product.get('brandName', 'Unknown'),
-
-                'spot_price': expected_price_info['spot_price_per_gram'],
-                'making_charges_percent': expected_price_info['making_charges_percent'],
-                'gst_percent': expected_price_info['gst_percent'],
+                'spot_price': expected_price_info.get('spot_price_per_gram', 0),
+                'making_charges_percent': expected_price_info.get('making_charges_percent', 0),
+                'gst_percent': expected_price_info.get('gst_percent', 0),
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -472,6 +444,7 @@ class GoldScraper:
         with ThreadPoolExecutor(max_workers=5) as ex:
             f1 = ex.submit(self.scrape_ajio)
             f2 = ex.submit(self.scrape_myntra)
+
             ajio_products = f1.result()
             myntra_products = f2.result()
 
@@ -480,16 +453,16 @@ class GoldScraper:
         return all_products
 
     def scrape_all_with_cache(self, force_refresh: bool = False):
-        """Scrape all sources with caching"""
         cache_file = "data/latest_scan.json"
 
         if not force_refresh and os.path.exists(cache_file):
             cache_age = time.time() - os.path.getmtime(cache_file)
-            if cache_age < 300:  # 5 minutes cache
+            if cache_age < 300:
                 with open(cache_file, 'r') as f:
                     return json.load(f)
 
         products = self.scrape_all()
+
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         with open(cache_file, 'w') as f:
             json.dump(products, f)
