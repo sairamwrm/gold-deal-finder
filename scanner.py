@@ -86,3 +86,11 @@ def fetch_reference_24k_per_gram(city: str, force_refresh: bool = False):
         return float(last_val), "last_known"
 
     return 0.0, "unavailable"
+    from pathlib import Path
+import json
+
+Path("scan_summary.json").write_text(json.dumps({
+    "time_utc": datetime.utcnow().isoformat(),
+    "total_products": len(products),
+    "deals_found": len(deals)
+}, indent=2), encoding="utf-8")
