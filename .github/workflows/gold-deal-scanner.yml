@@ -2,8 +2,8 @@ name: Gold Deal Scanner
 
 on:
   schedule:
-    - cron: "*/6 * * * *"   # every 6 minutes (UTC), supports burst scans
-  # NO workflow_dispatch (manual) - removed as you requested
+    - cron: "*/6 * * * *"   # every 6 minutes (UTC)
+  # workflow_dispatch removed (no manual option)
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
           restore-keys: |
             scanner-state-
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -46,7 +46,7 @@ jobs:
 
           GOODRETURNS_CITY: "hyderabad"
 
-          PAYMENT_MODES_ALLOWED: ""     # allow all
+          PAYMENT_MODES_ALLOWED: ""     # allow all (avoid filtering everything out)
           MIN_WEIGHT: "0.3"
           MIN_DISCOUNT_PERCENTAGE: "0"
 
