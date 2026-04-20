@@ -5,21 +5,18 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ---------------- TAX & PURITY (REQUIRED by price_calculator.py) ----------------
-# GST for gold products in India is typically 3%
-GST_RATE = float(os.getenv("GST_RATE", "0.03"))
+# IMPORTANT: Your price_calculator uses GST_RATE/100 so GST_RATE must be 3, not 0.03
+GST_RATE = float(os.getenv("GST_RATE", "3.0"))
 
-# Purity mapping used to convert karat/labels to purity fraction
+# Used by price_calculator.calculate_expected_price()
 PURITY_MAPPING = {
     "24K": 0.999,
     "999": 0.999,
     "995": 0.995,
-
     "22K": 0.916,
     "916": 0.916,
-
     "18K": 0.750,
     "750": 0.750,
-
     "14K": 0.585,
     "585": 0.585,
 }
@@ -27,10 +24,10 @@ PURITY_MAPPING = {
 # ---------------- SCRAPER SETTINGS ----------------
 REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.6"))
 
-# AJIO API URL (keep same as what worked earlier if you had a different one)
+# AJIO API URL (keep if your previous one worked)
 AJIO_API_URL = os.getenv("AJIO_API_URL", "https://www.ajio.com/api/search")
 
-# SEARCH PARAMS (keep same as earlier working values if yours were different)
+# Search params used by gold_scraper.py
 SEARCH_PARAMS = {
     "ajio": {
         "query": "gold",
@@ -45,7 +42,6 @@ SEARCH_PARAMS = {
 
 # ---------------- PAYMENT DISCOUNT RULES ----------------
 PAYMENT_DISCOUNT_RULES = [
-    # Example: AJIO prepaid/UPI discount model
     {
         "name": "AJIO_PREPAID_UPI_5P",
         "site": "AJIO",
@@ -56,8 +52,6 @@ PAYMENT_DISCOUNT_RULES = [
         "payment_modes": ["UPI", "PREPAID"],
         "stackable": True
     },
-
-    # Example: ICICI card instant discount model
     {
         "name": "AJIO_ICICI_CC_10P",
         "site": "AJIO",
