@@ -51,4 +51,3 @@ def process_product(product):
 🔗 {product['url']}
 """.strip()
     )
-``
