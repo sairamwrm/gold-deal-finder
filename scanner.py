@@ -3,6 +3,8 @@ from pathlib import Path
 import requests
 import re
 from price_calculator import GoldPriceCalculator
+from datetime import datetime
+import datetime
 
 STATE_PATH = Path(".scanner_state.json")
 
