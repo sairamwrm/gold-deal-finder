@@ -123,4 +123,3 @@ def is_real_deal(
         "gst_frac": round(float(gst_frac), 6),
         "tolerance_pct": round(float(tolerance_pct), 6),
     }
-``
