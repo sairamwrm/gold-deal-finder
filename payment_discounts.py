@@ -12,14 +12,9 @@ def apply_payment_discounts(
     Returns:
       pay_now_price: float        -> after instant discounts
       effective_price: float      -> after cashback discounts too (if modeled)
-      total_discount_value: float -> total of all discount components applied
+      total_discount_value: float -> total discount applied
       applied_rules: str          -> comma-separated rule names or "NONE"
-
-    Notes:
-    - Instant discounts reduce pay_now_price (what you pay at checkout).
-    - Cashback discounts reduce effective_price (what it effectively costs after cashback).
     """
-
     pay_now = float(selling_price)
     effective = float(selling_price)
     discount_total = 0.0
@@ -33,7 +28,6 @@ def apply_payment_discounts(
         if selling_price < float(r.get("min_order_value", 0)):
             continue
 
-        # If not stackable, skip additional rules after first applied
         if applied and (not allow_stacking or not r.get("stackable", True)):
             continue
 
@@ -44,7 +38,7 @@ def apply_payment_discounts(
             cap = float(r.get("max_discount", 10**18))
             disc = min(pay_now * percent / 100.0, cap)
             pay_now = max(0.0, pay_now - disc)
-            effective = pay_now  # effective follows pay_now for instant discounts
+            effective = pay_now
             discount_total += disc
             applied.append(r.get("name", "RULE"))
 
@@ -76,12 +70,12 @@ def best_price_by_payment_mode(
     allow_stacking: bool = True
 ) -> Dict:
     """
-    Evaluate multiple payment modes and return the best (lowest effective_price).
+    Try multiple payment modes and return the best effective price.
     """
     best = {
         "payment_mode": None,
-        "pay_now_price": selling_price,
-        "effective_price": selling_price,
+        "pay_now_price": float(selling_price),
+        "effective_price": float(selling_price),
         "discount_value": 0.0,
         "rules": "NONE"
     }
