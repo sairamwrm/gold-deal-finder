@@ -81,7 +81,7 @@ RTGS_DISCOUNT = 600
 JEWELLERY_PREMIUM_22K = 1200
 
 # Cache settings
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 60  # 1 minutes
 CACHE_FILE = "bullion_cache.json"
 
 # Local app runtime
@@ -96,7 +96,7 @@ HISTORICAL_SCAN_LIMIT_DEFAULT = int(os.getenv('HISTORICAL_SCAN_LIMIT_DEFAULT', '
 MAX_HISTORICAL_SCAN_LIMIT = int(os.getenv('MAX_HISTORICAL_SCAN_LIMIT', '25'))
 
 # Scraping settings
-REQUEST_DELAY = 2  # seconds between requests
+REQUEST_DELAY = 0.3  # seconds between requests
 MAX_PAGES = 3
 REQUEST_TIMEOUT = 30
 
