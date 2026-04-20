@@ -1,47 +1,109 @@
-# ---------------- PAYMENT DISCOUNT RULES ----------------
-# These rules model payment-time discounts that are applied at checkout.
-# AJIO examples are published in AJIO T&C pages with min order value and cap. [1](https://www.linkedin.com/pulse/web-scraping-ajio-data-fashion-trends-pricing-product-analysis-nokle)[2](https://regexr.com/)
+from typing import Dict, List, Tuple
 
-PAYMENT_DISCOUNT_RULES = [
-    # AJIO prepaid/UPI example: 5% instant prepaid discount, min ₹40,000, max ₹2,000. [1](https://www.linkedin.com/pulse/web-scraping-ajio-data-fashion-trends-pricing-product-analysis-nokle)
-    {
-        "name": "AJIO_PREPAID_UPI_5P",
-        "site": "AJIO",
-        "type": "instant_percent",
-        "percent": 5.0,
-        "max_discount": 2000.0,
-        "min_order_value": 40000.0,
-        "payment_modes": ["UPI", "PREPAID"],
-        "stackable": True
-    },
 
-    # AJIO ICICI offer snapshot example (choose one of the offer tiers). [2](https://regexr.com/)
-    {
-        "name": "AJIO_ICICI_CC_10P",
-        "site": "AJIO",
-        "type": "instant_percent",
-        "percent": 10.0,
-        "max_discount": 1000.0,
-        "min_order_value": 3000.0,
-        "payment_modes": ["ICICI_CC"],
-        "stackable": False
-    },
+def apply_payment_discounts(
+    site: str,
+    selling_price: float,
+    payment_mode: str,
+    rules: List[Dict],
+    allow_stacking: bool = True
+) -> Tuple[float, float, float, str]:
+    """
+    Returns:
+      pay_now_price: float        -> after instant discounts
+      effective_price: float      -> after cashback discounts too (if modeled)
+      total_discount_value: float -> total of all discount components applied
+      applied_rules: str          -> comma-separated rule names or "NONE"
 
-    # Myntra: add your own rules if you want to model bank/card/coupon effects.
-    # Example placeholder:
-    # {
-    #     "name": "MYNTRA_BANK_X",
-    #     "site": "Myntra",
-    #     "type": "cashback_percent",
-    #     "percent": 5.0,
-    #     "max_discount": 1000.0,
-    #     "min_order_value": 3500.0,
-    #     "payment_modes": ["BANK_CC"],
-    #     "stackable": False
-    # },
-]
+    Notes:
+    - Instant discounts reduce pay_now_price (what you pay at checkout).
+    - Cashback discounts reduce effective_price (what it effectively costs after cashback).
+    """
 
-# Default modes to compare (you can change)
-PAYMENT_MODES_TO_TRY = ["UPI", "PREPAID", "ICICI_CC"]
-DEFAULT_PAYMENT_MODE = "UPI"
-``
+    pay_now = float(selling_price)
+    effective = float(selling_price)
+    discount_total = 0.0
+    applied = []
+
+    for r in rules:
+        if r.get("site") != site:
+            continue
+        if payment_mode not in r.get("payment_modes", []):
+            continue
+        if selling_price < float(r.get("min_order_value", 0)):
+            continue
+
+        # If not stackable, skip additional rules after first applied
+        if applied and (not allow_stacking or not r.get("stackable", True)):
+            continue
+
+        rtype = r.get("type")
+
+        if rtype == "instant_percent":
+            percent = float(r.get("percent", 0))
+            cap = float(r.get("max_discount", 10**18))
+            disc = min(pay_now * percent / 100.0, cap)
+            pay_now = max(0.0, pay_now - disc)
+            effective = pay_now  # effective follows pay_now for instant discounts
+            discount_total += disc
+            applied.append(r.get("name", "RULE"))
+
+        elif rtype == "cashback_percent":
+            percent = float(r.get("percent", 0))
+            cap = float(r.get("max_discount", 10**18))
+            disc = min(effective * percent / 100.0, cap)
+            effective = max(0.0, effective - disc)
+            discount_total += disc
+            applied.append(r.get("name", "RULE"))
+
+        elif rtype == "instant_flat":
+            flat = float(r.get("flat", 0))
+            cap = float(r.get("max_discount", 10**18))
+            disc = min(flat, cap)
+            pay_now = max(0.0, pay_now - disc)
+            effective = pay_now
+            discount_total += disc
+            applied.append(r.get("name", "RULE"))
+
+    return pay_now, effective, discount_total, ",".join(applied) if applied else "NONE"
+
+
+def best_price_by_payment_mode(
+    site: str,
+    selling_price: float,
+    payment_modes: List[str],
+    rules: List[Dict],
+    allow_stacking: bool = True
+) -> Dict:
+    """
+    Evaluate multiple payment modes and return the best (lowest effective_price).
+    """
+    best = {
+        "payment_mode": None,
+        "pay_now_price": selling_price,
+        "effective_price": selling_price,
+        "discount_value": 0.0,
+        "rules": "NONE"
+    }
+
+    for mode in payment_modes:
+        pay_now, effective, disc, label = apply_payment_discounts(
+            site=site,
+            selling_price=selling_price,
+            payment_mode=mode,
+            rules=rules,
+            allow_stacking=allow_stacking
+        )
+        if effective < best["effective_price"]:
+            best = {
+                "payment_mode": mode,
+                "pay_now_price": pay_now,
+                "effective_price": effective,
+                "discount_value": disc,
+                "rules": label
+            }
+
+    if best["payment_mode"] is None:
+        best["payment_mode"] = payment_modes[0] if payment_modes else "NONE"
+
+    return best
