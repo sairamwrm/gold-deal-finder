@@ -1,95 +1,41 @@
 import os
-import logging
-from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('gold_deal_finder.log'),
-        # logging.StreamHandler()
-    ]
-)
+# ---------------- TELEGRAM ----------------
+# Keep these in GitHub Secrets:
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-logger = logging.getLogger(__name__)
+# ---------------- SCRAPER SETTINGS ----------------
+REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.6"))  # seconds between requests
 
-load_dotenv()
+# AJIO search API endpoint (this is what your project already uses)
+AJIO_API_URL = os.getenv("AJIO_API_URL", "https://www.ajio.com/api/search")
 
-# Telegram Configuration
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', 'YOUR_CHAT_ID')
-
-# If you have API keys for premium services
-METALPRICE_API_KEY = os.getenv('METALPRICE_API_KEY', '')
-GOLDAPI_TOKEN = os.getenv('GOLDAPI_TOKEN', '')
-
-# API Endpoints
-AJIO_API_URL = "https://www.ajio.com/api/search"
-MYNTRA_API_URL = "https://www.myntra.com/gateway/v4/search"
-
-# GST Rate (for India)
-GST_RATE = 0  # 3% GST on gold
-
-# Purity to karat mapping
-PURITY_MAPPING = {
-    '24K': 0.999,
-    '22K': 0.9167,
-    '18K': 0.750,
-    '14K': 0.585,
-    '916': 0.9167,
-    '999': 0.999,
-    '750': 0.750,
-    '585': 0.585
-}
-
-# Search Parameters
+# Search params for AJIO + Myntra
+# NOTE: If your old config had specific params that worked, keep them.
 SEARCH_PARAMS = {
-    'ajio': {
-        'query': 'gold coin:relevance',
-        'text': 'gold coin',
-        'pageSize': 45,
-        'format': 'json',
-        'fields': 'SITE',
-        'pincode': '501503',
-        'state': 'TELANGANA',
-        'city': 'HYDERABAD'
+    "ajio": {
+        # AJIO often uses query/searchText + page fields
+        # Keep this structure because your scraper updates currentPage dynamically.
+        "query": "gold",
+        "currentPage": 1,
+        "pageSize": 48,
+        "sortBy": "relevance",
     },
-    'myntra': {
-        'rows': 50,
-        'pincode': '501503',
-        'plaEnabled': 'true'
+    "myntra": {
+        "rows": 50
     }
 }
 
-# Alert Thresholds
-MIN_DISCOUNT_PERCENTAGE = -1
-MIN_WEIGHT = 0.5
-MAX_PRICE_PER_GRAM = {
-    '24K': 18000,
-    '22K': 17000,
-    '18K': 16000,
-    '14K': 15000,
-    'default': 14000
-}
-
-# Price calculation constants
-OZ_TO_GRAM = 31.1035
-LANDED_MULTIPLIER = 1.11
-RETAIL_SPREAD = 700
-RTGS_DISCOUNT = 600
-JEWELLERY_PREMIUM_22K = 1200
-
 # ---------------- PAYMENT DISCOUNT RULES ----------------
-# These rules model payment-time discounts that are applied at checkout.
-# AJIO examples are published in AJIO T&C pages with min order value and cap. [1](https://www.linkedin.com/pulse/web-scraping-ajio-data-fashion-trends-pricing-product-analysis-nokle)[2](https://regexr.com/)
-
+# Payment-time discounts applied at checkout (modeled rules)
 PAYMENT_DISCOUNT_RULES = [
-    # AJIO prepaid/UPI example: 5% instant prepaid discount, min ₹40,000, max ₹2,000. [1](https://www.linkedin.com/pulse/web-scraping-ajio-data-fashion-trends-pricing-product-analysis-nokle)
+    # AJIO prepaid/UPI example: 5% instant prepaid discount, min ₹40,000, max ₹2,000
     {
         "name": "AJIO_PREPAID_UPI_5P",
         "site": "AJIO",
-        "type": "instant_percent",
+        "type": "instant_percent",      # instant_percent | cashback_percent | instant_flat
         "percent": 5.0,
         "max_discount": 2000.0,
         "min_order_value": 40000.0,
@@ -97,7 +43,7 @@ PAYMENT_DISCOUNT_RULES = [
         "stackable": True
     },
 
-    # AJIO ICICI offer snapshot example (choose one of the offer tiers). [2](https://regexr.com/)
+    # AJIO ICICI offer example: 10% off up to ₹1000, min ₹3000
     {
         "name": "AJIO_ICICI_CC_10P",
         "site": "AJIO",
@@ -109,10 +55,9 @@ PAYMENT_DISCOUNT_RULES = [
         "stackable": False
     },
 
-    # Myntra: add your own rules if you want to model bank/card/coupon effects.
-    # Example placeholder:
+    # Myntra rules optional (add later if needed)
     # {
-    #     "name": "MYNTRA_BANK_X",
+    #     "name": "MYNTRA_BANK_CC_5P",
     #     "site": "Myntra",
     #     "type": "cashback_percent",
     #     "percent": 5.0,
@@ -123,31 +68,5 @@ PAYMENT_DISCOUNT_RULES = [
     # },
 ]
 
-# Default modes to compare (you can change)
 PAYMENT_MODES_TO_TRY = ["UPI", "PREPAID", "ICICI_CC"]
 DEFAULT_PAYMENT_MODE = "UPI"
-``
-
-# Cache settings
-CACHE_TTL = 60  # 1 minutes
-CACHE_FILE = "bullion_cache.json"
-
-# Local app runtime
-APP_HOST = os.getenv('APP_HOST', '0.0.0.0')
-APP_PORT = int(os.getenv('APP_PORT', '8000'))
-APP_RELOAD = os.getenv('APP_RELOAD', 'true').lower() == 'true'
-AUTO_OPEN_BROWSER = os.getenv('AUTO_OPEN_BROWSER', 'false').lower() == 'true'
-
-# Scan behavior
-SCAN_COOLDOWN_MINUTES = int(os.getenv('SCAN_COOLDOWN_MINUTES', '0'))
-HISTORICAL_SCAN_LIMIT_DEFAULT = int(os.getenv('HISTORICAL_SCAN_LIMIT_DEFAULT', '5'))
-MAX_HISTORICAL_SCAN_LIMIT = int(os.getenv('MAX_HISTORICAL_SCAN_LIMIT', '25'))
-
-# Scraping settings
-REQUEST_DELAY = 0.3  # seconds between requests
-MAX_PAGES = 3
-REQUEST_TIMEOUT = 30
-
-# Retry settings
-MAX_RETRIES = 3
-RETRY_DELAY = 5
