@@ -2,7 +2,7 @@ name: Gold Deal Scanner
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes (UTC)
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -25,7 +25,7 @@ jobs:
           echo "Triggered by: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
 
-      - name: Restore scanner state (dedup + last-known reference)
+      - name: Restore scanner state
         uses: actions/cache@v4
         with:
           path: .scanner_state.json
@@ -45,3 +45,21 @@ jobs:
 
       - name: Run scanner
         env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOODRETURNS_CITY: "hyderabad"
+          PAYMENT_MODES_ALLOWED: ""
+          MIN_WEIGHT: "0.3"
+          MIN_DISCOUNT_PERCENTAGE: "0"
+          FORCE_SCAN: "false"
+          TEST_RUN: "false"
+        run: |
+          python scanner.py
+
+      - name: Upload summary + state
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results
+          path: |
+            scan_summary.json
+            .scanner_state.json
