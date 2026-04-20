@@ -104,7 +104,7 @@ def fetch_reference_24k_per_gram(city: str, force_refresh: bool = False):
     except Exception:
         pass
 
-    # 2) Fallback: Spot with GST (your internal price engine)
+    # 2) Fallback: Spot with GST
     try:
         from price_calculator import GoldPriceCalculator
         calc = GoldPriceCalculator()
@@ -159,9 +159,6 @@ def _normalize_allowed_modes():
 
 
 def run_one_scan(products, ref_24k, ref_source):
-    """
-    One scan iteration: computes deals + near misses.
-    """
     allowed_modes, allow_all_modes = _normalize_allowed_modes()
 
     deals = []
@@ -196,6 +193,7 @@ def run_one_scan(products, ref_24k, ref_source):
 
         below_pct = ((ref_pg - eff_pg) / ref_pg) * 100.0 if ref_pg > 0 else 0.0
 
+        # overwrite fields for consistent telegram formatting
         p["reference_source"] = ref_source
         p["reference_24k_price"] = round(ref_24k, 2)
         p["goodreturns_fair_price_per_gram"] = round(ref_pg, 2)
@@ -236,68 +234,58 @@ async def main():
         print("❌ Reference 24K unavailable.")
         return
 
-    print(f"✅ Reference 24K (₹/g): {ref_24k} | Source: {ref_source}")
-
     scraper = GoldScraper()
     bot = TelegramAlertBot()
 
-    # Fetch products ONCE per job run
     products = scraper.scrape_all_with_cache(force_refresh=force_scan)
 
-    # ⚡ BURST MODE: run 5 scans 60s apart (catches deals lasting few minutes)
+    # ⚡ Burst scanning: 5 scans 60 seconds apart
     burst_scans = 5
-    all_deals_best = []
-    all_near_best = []
-    last_stats = None
+    best_deals = []
+    best_near = []
+    last_stats = {}
 
     for i in range(burst_scans):
         print(f"⚡ Burst scan {i+1}/{burst_scans}")
         deals, near, stats = run_one_scan(products, ref_24k, ref_source)
         last_stats = stats
-
-        # keep best deals snapshot
         if deals:
-            all_deals_best = deals
+            best_deals = deals
         if near:
-            all_near_best = near
-
+            best_near = near
         if i < burst_scans - 1:
             await asyncio.sleep(60)
 
     # ✅ Always write summary artifact
-    try:
-        Path("scan_summary.json").write_text(
-            json.dumps({
-                "time_utc": datetime.utcnow().isoformat(),
-                "reference_city": GOODRETURNS_CITY,
-                "reference_source": ref_source,
-                "reference_24k_per_gram": round(ref_24k, 2),
-                "burst_scans": burst_scans,
-                "stats": last_stats or {},
-                "top_near": [
-                    {
-                        "title": (x.get("title") or "")[:120],
-                        "eff_pg": x.get("effective_price_per_gram"),
-                        "ref_pg": x.get("goodreturns_fair_price_per_gram"),
-                        "discount_percent": x.get("discount_percent"),
-                        "url": x.get("url") or ""
-                    }
-                    for x in (all_near_best[:5] if all_near_best else [])
-                ],
-            }, indent=2),
-            encoding="utf-8"
-        )
-    except Exception as e:
-        print("⚠️ Could not write scan_summary.json:", e)
+    Path("scan_summary.json").write_text(
+        json.dumps({
+            "time_utc": datetime.utcnow().isoformat(),
+            "reference_city": GOODRETURNS_CITY,
+            "reference_source": ref_source,
+            "reference_24k_per_gram": round(ref_24k, 2),
+            "burst_scans": burst_scans,
+            "stats": last_stats,
+            "closest_items": [
+                {
+                    "title": (x.get("title") or "")[:120],
+                    "eff_pg": x.get("effective_price_per_gram"),
+                    "ref_pg": x.get("goodreturns_fair_price_per_gram"),
+                    "discount_percent": x.get("discount_percent"),
+                    "url": x.get("url") or ""
+                }
+                for x in (best_near[:5] if best_near else [])
+            ]
+        }, indent=2),
+        encoding="utf-8"
+    )
 
     if test_run:
-        print("TEST RUN done.")
         return
 
-    # ✅ Dedup alerts
-    if not all_deals_best:
+    # Dedup messaging
+    if not best_deals:
         closest = []
-        for d in (all_near_best[:5] if all_near_best else []):
+        for d in (best_near[:5] if best_near else []):
             closest.append({
                 "title": (d.get("title") or "")[:120],
                 "eff_pg": _to_float(d.get("effective_price_per_gram"), 0.0),
@@ -315,33 +303,13 @@ async def main():
         h = _hash_payload(payload)
 
         if _should_send("no_deals", h):
-            lines = []
-            for c in closest:
-                lines.append(
-                    f"- {c['title']}\n"
-                    f"  Eff ₹/g: {c['eff_pg']} | Ref ₹/g: {c['ref_pg']}\n"
-                    f"  {c['url']}\n"
-                )
-
-            msg = (
-                f"⚠️ No deals found (burst {burst_scans} scans)\n"
-                f"Ref Source: {ref_source} | 24K ₹/g: {round(ref_24k,2)}\n\n"
-                f"Closest items:\n" + "\n".join(lines)
-            )
-
-            sent = await _safe_send(bot, msg)
-            if sent:
-                _mark_sent("no_deals", h)
-                print("✅ Sent NO-DEALS message (changed since last run).")
-            else:
-                print("⚠️ Could not send no-deals message (bot send method not found).")
-        else:
-            print("🟡 Suppressed NO-DEALS message (no change).")
+            msg = f"⚠️ No deals found (burst {burst_scans} scans)\nRef: {ref_source} ₹{round(ref_24k,2)}/g"
+            await _safe_send(bot, msg)
+            _mark_sent("no_deals", h)
         return
 
-    # deals exist
     top_deals = []
-    for d in all_deals_best[:10]:
+    for d in best_deals[:10]:
         top_deals.append({
             "title": (d.get("title") or "")[:120],
             "eff_pg": _to_float(d.get("effective_price_per_gram"), 0.0),
@@ -353,12 +321,10 @@ async def main():
     h = _hash_payload(payload)
 
     if not _should_send("deals", h):
-        print("🟡 Suppressed DEAL alerts (same deals).")
         return
 
-    await bot.send_bulk_alerts(all_deals_best)
+    await bot.send_bulk_alerts(best_deals)
     _mark_sent("deals", h)
-    print("✅ Sent DEAL alerts (changed).")
 
 
 if __name__ == "__main__":
