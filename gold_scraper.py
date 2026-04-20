@@ -5,12 +5,13 @@ import time
 import re
 import random
 from typing import Dict, List, Optional, Tuple, Any
-from config import AJIO_API_URL, SEARCH_PARAMS, REQUEST_DELAY
-from price_calculator import GoldPriceCalculator
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from payment_discounts import apply_payment_discounts, best_price_by_payment_mode
+from config import AJIO_API_URL, SEARCH_PARAMS, REQUEST_DELAY
+from price_calculator import GoldPriceCalculator
+
+from payment_discounts import best_price_by_payment_mode
 from config import PAYMENT_DISCOUNT_RULES, PAYMENT_MODES_TO_TRY, DEFAULT_PAYMENT_MODE
 
 
@@ -65,18 +66,16 @@ class GoldScraper:
             "Connection": "keep-alive",
         }
 
+        # First visit to generate cookies
         s.get("https://www.myntra.com", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
 
+        # Visit gold coins page
         s.get("https://www.myntra.com/gold-coin", headers=base_headers, timeout=15)
         time.sleep(random.uniform(1, 2))
 
-        s.cookies.set(
-            "mynt-ulc",
-            "pincode:501503|addressId:",
-            domain=".myntra.com"
-        )
-
+        # Set pincode cookie (optional)
+        s.cookies.set("mynt-ulc", "pincode:501503|addressId:", domain=".myntra.com")
         return s, base_headers
 
     def extract_purity_and_weight(self, title: str) -> Tuple[Optional[str], Optional[float]]:
@@ -90,6 +89,7 @@ class GoldScraper:
         if not is_real_gold_product(title):
             return None, None
 
+        # PURITY
         purity = None
         purity_patterns = [
             (r'24\s*kt|24\s*karat|\b999\b|24k', '24K'),
@@ -103,27 +103,19 @@ class GoldScraper:
                 purity = purity_value
                 break
 
+        # WEIGHT
         PURITY_NUMBERS = {24, 22, 18, 14, 999, 916, 750, 585, 995}
 
         def is_valid_weight(n: float) -> bool:
             return n not in PURITY_NUMBERS and 0.001 <= n <= 10_000
 
-        paren_total_pat = re.compile(
-            r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b\s*\(([^)]+)\)',
-            re.IGNORECASE
-        )
+        # Case 1: "3GMS (2gm+1gm)" or "4.5gm (0.5gm + 2gm + 2gm)"
+        paren_total_pat = re.compile(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b\s*\(([^)]+)\)', re.IGNORECASE)
         m = paren_total_pat.search(title_lower)
         if m:
             outside_total = float(m.group(1))
             inside_text = m.group(2)
-
-            inside_weights = [
-                float(x) for x in re.findall(
-                    r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
-                    inside_text,
-                    flags=re.IGNORECASE
-                )
-            ]
+            inside_weights = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', inside_text, flags=re.IGNORECASE)]
             if inside_weights:
                 inside_sum = sum(inside_weights)
                 weight_in_grams = outside_total if abs(outside_total - inside_sum) <= 0.05 else inside_sum
@@ -133,17 +125,12 @@ class GoldScraper:
             if is_valid_weight(weight_in_grams):
                 return purity, round(weight_in_grams, 3)
 
+        # Case 2: plus sums like "0.5gm + 2gm + 2gm"
         if '+' in title_lower:
             inside_parentheses = re.search(r'\(([^)]*\+[^)]*)\)', title_lower)
             if inside_parentheses:
                 text = inside_parentheses.group(1)
-                plus_weights = [
-                    float(x) for x in re.findall(
-                        r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
-                        text,
-                        flags=re.IGNORECASE
-                    )
-                ]
+                plus_weights = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', text, flags=re.IGNORECASE)]
                 plus_weights = [w for w in plus_weights if is_valid_weight(w)]
                 if plus_weights:
                     return purity, round(sum(plus_weights), 3)
@@ -159,12 +146,14 @@ class GoldScraper:
                 if plus_weights:
                     return purity, round(sum(plus_weights), 3)
 
+        # Case 3: hyphen before weight
         hyphen_match = re.search(r'-\s*(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b', title_lower, flags=re.IGNORECASE)
         if hyphen_match:
             w = float(hyphen_match.group(1))
             if is_valid_weight(w):
                 return purity, round(w, 3)
 
+        # Case 4: mg
         mg_match = re.search(r'(\d+(?:\.\d+)?)\s*mg\b', title_lower, flags=re.IGNORECASE)
         if mg_match:
             w_mg = float(mg_match.group(1))
@@ -172,6 +161,7 @@ class GoldScraper:
             if is_valid_weight(grams):
                 return purity, round(grams, 6)
 
+        # Case 5: general patterns
         weight_patterns = [
             r'(\d+(?:\.\d+)?)\s*(?:grams?|gms?|gm|gr)\b',
             r'(\d+(?:\.\d+)?)\s*g(?!\w)',
@@ -216,30 +206,21 @@ class GoldScraper:
             params['currentPage'] = page
 
             try:
-                r = requests.get(
-                    AJIO_API_URL,
-                    params=params,
-                    headers=self.ajio_headers,
-                    timeout=10
-                )
-
+                r = requests.get(AJIO_API_URL, params=params, headers=self.ajio_headers, timeout=15)
                 if r.status_code != 200:
-                    print(f"Page {page} failed")
+                    print(f"AJIO page {page} failed with status {r.status_code}")
                     return []
 
                 data = r.json()
                 page_products = []
-
                 for p in data.get("products", []):
                     parsed = self._parse_ajio_product(p)
                     if parsed:
                         page_products.append(parsed)
 
-                print(f"Page {page}: {len(page_products)} valid")
                 return page_products
-
             except Exception as e:
-                print(f"Page {page} error: {e}")
+                print(f"AJIO page {page} error: {e}")
                 return []
 
         with ThreadPoolExecutor(max_workers=6) as ex:
@@ -260,13 +241,9 @@ class GoldScraper:
                 return None
 
             purity, weight = self.extract_purity_and_weight(title)
-
             if not purity or weight is None:
-                print('AJIO>Skipping invalid purity/weight product :', title)
                 return None
-
             if weight < 0.3:
-                print('Skipping <0.3 product    :', title)
                 return None
 
             product_type = self.determine_product_type(title, description)
@@ -280,16 +257,13 @@ class GoldScraper:
             selling_price = selling_price if selling_price > 0 else selling_price2
 
             if selling_price < 1000:
-                print('Skipping <1000 price product    :', title)
                 return None
 
-            expected_price_info = self.price_calculator.calculate_expected_price(
-                weight, purity, is_jewellery
-            )
+            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, is_jewellery)
             expected_price = expected_price_info['total_expected']
 
-            # ✅ PAYMENT DISCOUNT MODELING (FIXED INDENTATION)
-            payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
+            # --- PAYMENT DISCOUNT MODELING (AJIO) ---
+            _ = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
 
             best = best_price_by_payment_mode(
                 site="AJIO",
@@ -305,10 +279,7 @@ class GoldScraper:
             payment_discount_rules = best["rules"]
             best_payment_mode = best["payment_mode"]
 
-            discount_percent = self.price_calculator.calculate_discount_percentage(
-                effective_price, expected_price
-            )
-
+            discount_percent = self.price_calculator.calculate_discount_percentage(effective_price, expected_price)
             price_per_gram = effective_price / weight
 
             return {
@@ -320,7 +291,7 @@ class GoldScraper:
                 'product_type': product_type,
                 'is_jewellery': is_jewellery,
 
-                'selling_price': selling_price,
+                'selling_price': float(selling_price),
                 'pay_now_price': round(pay_now_price, 2),
                 'effective_price': round(effective_price, 2),
                 'payment_discount_value': round(payment_discount_value, 2),
@@ -334,6 +305,7 @@ class GoldScraper:
                 'url': f"https://www.ajio.com{product.get('url', '')}",
                 'image_url': product.get('images', [{}])[0].get('url', '') if product.get('images') else '',
                 'brand': product.get('fnlColorVariantData', {}).get('brandName', 'Unknown'),
+
                 'spot_price': expected_price_info['spot_price_per_gram'],
                 'making_charges_percent': expected_price_info['making_charges_percent'],
                 'gst_percent': expected_price_info['gst_percent'],
@@ -351,11 +323,7 @@ class GoldScraper:
         def fetch_page(page: int):
             session, base_headers = self.create_myntra_session()
 
-            params = {
-                "rows": 50,
-                "o": (49 * (page - 1)) + 1,
-                "pincode": "384315"
-            }
+            params = {"rows": 50, "o": (49 * (page - 1)) + 1, "pincode": "384315"}
 
             api_headers = {
                 "User-Agent": base_headers["User-Agent"],
@@ -372,23 +340,19 @@ class GoldScraper:
                     headers=api_headers,
                     timeout=20
                 )
-
                 if r.status_code != 200:
                     return []
 
                 data = r.json()
                 page_products = []
-
                 for p in data.get("products", []):
                     parsed = self._parse_myntra_product(p)
                     if parsed:
                         page_products.append(parsed)
-
-                print(f"Page {page}: {len(page_products)} valid")
                 return page_products
 
             except Exception as e:
-                print(f"Page {page} error: {e}")
+                print(f"Myntra page {page} error: {e}")
                 return []
 
         with ThreadPoolExecutor(max_workers=5) as ex:
@@ -417,8 +381,7 @@ class GoldScraper:
                     return 0.0, 0.0
 
             return 0.0, 0.0
-        except Exception as e:
-            print(f"Error extracting Myntra price: {e}")
+        except Exception:
             return 0.0, 0.0
 
     def _parse_myntra_product(self, product: Dict) -> Optional[Dict]:
@@ -427,17 +390,13 @@ class GoldScraper:
             title = product.get('productName', '') or ''
             if not title:
                 return None
-
             if 'silver' in title.lower():
                 return None
 
             purity, weight = self.extract_purity_and_weight(title)
             if not purity or weight is None:
-                print('Myntra>Skipping invalid purity/weight product    :', title)
                 return None
-
             if weight < 0.3:
-                print('Skipping very small weight < 0.3 product    :', title)
                 return None
 
             product_type = self.determine_product_type(title)
@@ -445,18 +404,14 @@ class GoldScraper:
 
             price_data = product.get('price')
             selling_price, original_price = self._extract_myntra_price(price_data)
-
             if selling_price < 1000:
-                print('Skipping very small price <1000 product    :', title)
                 return None
 
-            expected_price_info = self.price_calculator.calculate_expected_price(
-                weight, purity, is_jewellery
-            )
+            expected_price_info = self.price_calculator.calculate_expected_price(weight, purity, is_jewellery)
             expected_price = expected_price_info['total_expected']
 
-            # ✅ PAYMENT DISCOUNT MODELING (Myntra)
-            payment_mode = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
+            # --- PAYMENT DISCOUNT MODELING (Myntra) ---
+            _ = os.getenv("PAYMENT_MODE", DEFAULT_PAYMENT_MODE)
 
             best = best_price_by_payment_mode(
                 site="Myntra",
@@ -472,10 +427,7 @@ class GoldScraper:
             payment_discount_rules = best["rules"]
             best_payment_mode = best["payment_mode"]
 
-            discount_percent = self.price_calculator.calculate_discount_percentage(
-                effective_price, expected_price
-            )
-
+            discount_percent = self.price_calculator.calculate_discount_percentage(effective_price, expected_price)
             price_per_gram = effective_price / weight
 
             landing_url = product.get('landingPageUrl', '') or ''
@@ -490,8 +442,8 @@ class GoldScraper:
                 'product_type': product_type,
                 'is_jewellery': is_jewellery,
 
-                'selling_price': selling_price,
-                'original_price': original_price,
+                'selling_price': float(selling_price),
+                'original_price': float(original_price),
                 'pay_now_price': round(pay_now_price, 2),
                 'effective_price': round(effective_price, 2),
                 'payment_discount_value': round(payment_discount_value, 2),
@@ -505,6 +457,7 @@ class GoldScraper:
                 'url': landing_url,
                 'image_url': product.get('searchImage', ''),
                 'brand': product.get('brandName', 'Unknown'),
+
                 'spot_price': expected_price_info['spot_price_per_gram'],
                 'making_charges_percent': expected_price_info['making_charges_percent'],
                 'gst_percent': expected_price_info['gst_percent'],
@@ -512,16 +465,13 @@ class GoldScraper:
             }
 
         except Exception as e:
-            print(f"Error parsing Myntra product '{product.get('productName', 'Unknown')}': {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error parsing Myntra product: {e}")
             return None
 
     def scrape_all(self) -> List[Dict]:
         with ThreadPoolExecutor(max_workers=5) as ex:
             f1 = ex.submit(self.scrape_ajio)
             f2 = ex.submit(self.scrape_myntra)
-
             ajio_products = f1.result()
             myntra_products = f2.result()
 
@@ -540,7 +490,6 @@ class GoldScraper:
                     return json.load(f)
 
         products = self.scrape_all()
-
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         with open(cache_file, 'w') as f:
             json.dump(products, f)
